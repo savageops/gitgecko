@@ -1,0 +1,30 @@
+{
+  "$schema": "../../../packages/socket/schemas/plug-manifest.v1.json",
+  "schemaVersion": "1.0.0",
+  "id": "sandbox-dry-run-guard",
+  "name": "Sandbox Dry-Run Guard (policy-only backend)",
+  "owner": "sandbox",
+  "version": "0.0.1",
+  "description": "A policy-only sandbox backend that validates specs against the isolation policy without executing. Proving plug (INV-2.3): interchangeable with sandbox-backends against the exclusive sandbox owner.",
+  "capabilities": [
+    "exec"
+  ],
+  "targets": {
+    "providers": [],
+    "plans": [],
+    "env": []
+  },
+  "dependencies": {
+    "requires": [],
+    "recommends": []
+  },
+  "permissions": {
+    "network": [],
+    "filesystem": [],
+    "env": [],
+    "mutatesTools": false
+  },
+  "entrypoint": "./plug.ts",
+  "hooks": false,
+  "mcp": false
+}

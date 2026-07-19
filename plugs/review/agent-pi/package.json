@@ -1,0 +1,26 @@
+{
+  "name": "@gitgecko/plug-agent-pi",
+  "version": "0.0.1",
+  "private": true,
+  "description": "PI coding-agent SDK backend for repository-aware local review.",
+  "type": "module",
+  "exports": { ".": "./dist/plug.js" },
+  "main": "./dist/plug.js",
+  "types": "./dist/plug.d.ts",
+  "scripts": {
+    "build": "rimraf dist && tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --test --import tsx plug.test.ts"
+  },
+  "dependencies": {
+    "@earendil-works/pi-coding-agent": "0.80.3",
+    "@gitgecko/review": "workspace:*",
+    "@gitgecko/socket": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "22.0.0",
+    "rimraf": "6.0.0",
+    "tsx": "4.19.0",
+    "typescript": "5.6.3"
+  }
+}

@@ -1,0 +1,36 @@
+packages:
+  - "packages/*"
+  - "plugs/*/*"
+  - "plugs/billing"
+  - "apps/*"
+
+nodeLinker: hoisted
+
+overrides:
+  axios: "1.18.1"
+  qs: "6.15.3"
+  diff: "9.0.0"
+  tar: "7.5.11"
+  undici: "8.7.0"
+  minimatch: "9.0.9"
+  rollup: "4.62.2"
+  flatted: "3.4.2"
+
+patchedDependencies:
+  "@earendil-works/pi-ai@0.80.3": "patches/@earendil-works__pi-ai@0.80.3.patch"
+
+allowBuilds:
+  "@google/genai": false
+  "@swc/core": true
+  better-sqlite3: true
+  esbuild: true
+  protobufjs: false
+  sharp: false
+  tldjs: false
+
+minimumReleaseAgeExclude:
+  - "@anthropic-ai/sdk@0.104.2"
+
+confirmModulesPurge: false
+
+savePrefix: ""

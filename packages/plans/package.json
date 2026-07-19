@@ -1,0 +1,26 @@
+{
+  "name": "@gitgecko/plans",
+  "version": "0.0.1",
+  "private": true,
+  "description": "The public plan-tier model + the plan-enforcement gate. Pure, dependency-light, and the only piece of the billing surface the published CLI needs (for the cloud-pathway plan gate).",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js",
+    "./plans": "./dist/plans.js"
+  },
+  "scripts": {
+    "build": "rimraf dist && tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --test --import tsx src/**/*.test.ts"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "typescript": "5.6.3",
+    "tsx": "4.19.0",
+    "@types/node": "22.0.0",
+    "rimraf": "6.0.0"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts"
+}

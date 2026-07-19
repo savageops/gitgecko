@@ -1,0 +1,62 @@
+# GitGecko — per-PR CI gate.
+#
+# Fast gates on every push/PR: install, offline pin check, typecheck, test.
+# No network-dependent checks, no Docker builds — those live in the private
+# nightly/release workflows.
+#
+# Gates mirror AGENTS.md: "typecheck + test are the gates" (never `pnpm run build`).
+#
+# Note: pnpm-lock.yaml is intentionally NOT committed publicly (library pattern —
+# consumers install via `npm install gitgecko`, not by cloning). So we use a
+# non-frozen install here.
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+# Cancel in-flight runs for the same ref when a new push lands.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          version: 11.7.0
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      # No --frozen-lockfile: pnpm-lock.yaml is not committed publicly (library
+      # pattern). Install resolves from package.json files.
+      - name: Install
+        run: pnpm install
+
+      # Offline pin check: enforces AGENTS.md exact-pin rule, no network.
+      - name: Validate pins (offline, no floating ranges)
+        run: node scripts/validate-pins.mjs
+
+      - name: Validate workspace graph
+        run: pnpm validate:graph
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
+      # Build the packed CLI consumer artifact to prove the bundle shape.
+      - name: Build packed CLI consumer
+        run: pnpm build:cli

@@ -1,0 +1,27 @@
+{
+  "name": "@gitgecko/plug-embed",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Embeddings plug for the code-intel owner. Salvaged from continue's LanceDbIndex (P-codeintel-10): batch chunk embedding via a pluggable EmbeddingProvider (BYO model — G5), dual store (LanceDB+SQLite prod, in-memory tests), cosine nearest-neighbor retrieval. Fourth step of Greptile's pipeline — the embeddings pillar.",
+  "type": "module",
+  "exports": {
+    ".": "./dist/plug.js"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "build": "rimraf dist && tsc -p tsconfig.build.json"
+  },
+  "dependencies": {
+    "@gitgecko/code-intel": "workspace:*",
+    "@gitgecko/core": "workspace:*",
+    "@gitgecko/socket": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "22.0.0",
+    "rimraf": "6.0.0",
+    "tsx": "4.19.0",
+    "typescript": "5.6.3"
+  },
+  "main": "./dist/plug.js",
+  "types": "./dist/plug.d.ts"
+}

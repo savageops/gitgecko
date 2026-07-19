@@ -1,0 +1,26 @@
+{
+  "name": "@gitgecko/plug-trigram-memory",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./dist/plug.js"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --test --import tsx plug.test.ts",
+    "build": "rimraf dist && tsc -p tsconfig.build.json"
+  },
+  "dependencies": {
+    "@gitgecko/code-intel": "workspace:*",
+    "@gitgecko/socket": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "22.0.0",
+    "rimraf": "6.0.0",
+    "tsx": "4.19.0",
+    "typescript": "5.6.3"
+  },
+  "main": "./dist/plug.js",
+  "types": "./dist/plug.d.ts"
+}

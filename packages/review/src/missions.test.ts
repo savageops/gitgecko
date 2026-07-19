@@ -1,0 +1,41 @@
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
+import { REVIEW_MISSIONS, renderReviewMission, resolveReviewMission } from "./missions.js";
+
+const missionIds = ["correctness", "security", "reliability", "performance", "testability"] as const;
+
+describe("bounded review missions", () => {
+  it("publishes five stable mission identifiers", () => assert.deepEqual(Object.keys(REVIEW_MISSIONS), missionIds));
+  it("resolves correctness", () => assert.equal(resolveReviewMission("correctness")?.id, "correctness"));
+  it("resolves security", () => assert.equal(resolveReviewMission("security")?.id, "security"));
+  it("resolves reliability", () => assert.equal(resolveReviewMission("reliability")?.id, "reliability"));
+  it("resolves performance", () => assert.equal(resolveReviewMission("performance")?.id, "performance"));
+  it("resolves testability", () => assert.equal(resolveReviewMission("testability")?.id, "testability"));
+  it("returns undefined when no mission was selected", () => assert.equal(resolveReviewMission(undefined), undefined));
+  it("rejects an unknown mission", () => assert.equal(resolveReviewMission("style"), undefined));
+  it("does not normalize an unknown mission into a near match", () => assert.equal(resolveReviewMission("Security"), undefined));
+  it("describes correctness with data-flow focus", () => assert.match(REVIEW_MISSIONS.correctness.focus, /data flow/u));
+  it("describes security with trust-boundary focus", () => assert.match(REVIEW_MISSIONS.security.focus, /trust boundaries/u));
+  it("describes reliability with failure-path focus", () => assert.match(REVIEW_MISSIONS.reliability.focus, /failure paths/u));
+  it("describes performance with asymptotic focus", () => assert.match(REVIEW_MISSIONS.performance.focus, /asymptotic/u));
+  it("describes testability with verification focus", () => assert.match(REVIEW_MISSIONS.testability.focus, /verification/u));
+  it("renders no prompt section without a mission", () => assert.equal(renderReviewMission(undefined), ""));
+  it("renders a named correctness scope", () => assert.match(renderReviewMission(REVIEW_MISSIONS.correctness), /correctness/u));
+  it("renders a named security scope", () => assert.match(renderReviewMission(REVIEW_MISSIONS.security), /security/u));
+  it("renders a named reliability scope", () => assert.match(renderReviewMission(REVIEW_MISSIONS.reliability), /reliability/u));
+  it("renders a named performance scope", () => assert.match(renderReviewMission(REVIEW_MISSIONS.performance), /performance/u));
+  it("renders a named testability scope", () => assert.match(renderReviewMission(REVIEW_MISSIONS.testability), /testability/u));
+  it("requires evidence before a mission finding", () => assert.match(renderReviewMission(REVIEW_MISSIONS.security), /evidence/u));
+  it("keeps deterministic findings authoritative inside a mission", () => assert.match(renderReviewMission(REVIEW_MISSIONS.correctness), /deterministic findings remain authoritative/u));
+  it("does not silently widen to unrelated concerns", () => assert.match(renderReviewMission(REVIEW_MISSIONS.performance), /outside this mission/u));
+  it("permits merge-blocking findings outside a focused mission", () => assert.match(renderReviewMission(REVIEW_MISSIONS.testability), /merge-blocking/u));
+  it("renders one scoped review section", () => assert.match(renderReviewMission(REVIEW_MISSIONS.reliability), /^\n\n## Review mission/u));
+  it("does not include a provider name", () => assert.doesNotMatch(renderReviewMission(REVIEW_MISSIONS.security), /(Codex|Claude|OpenCode|Pi)/u));
+  it("does not contain an internal filesystem path", () => assert.doesNotMatch(renderReviewMission(REVIEW_MISSIONS.security), /[A-Z]:\\|\/(?:src|packages)\//u));
+  it("does not expose a credential term", () => assert.doesNotMatch(renderReviewMission(REVIEW_MISSIONS.security), /(api[_ -]?key|token|password)/iu));
+  it("is deterministic for correctness", () => assert.equal(renderReviewMission(REVIEW_MISSIONS.correctness), renderReviewMission(REVIEW_MISSIONS.correctness)));
+  it("is deterministic for security", () => assert.equal(renderReviewMission(REVIEW_MISSIONS.security), renderReviewMission(REVIEW_MISSIONS.security)));
+  it("is deterministic for reliability", () => assert.equal(renderReviewMission(REVIEW_MISSIONS.reliability), renderReviewMission(REVIEW_MISSIONS.reliability)));
+  it("is deterministic for performance", () => assert.equal(renderReviewMission(REVIEW_MISSIONS.performance), renderReviewMission(REVIEW_MISSIONS.performance)));
+  it("is deterministic for testability", () => assert.equal(renderReviewMission(REVIEW_MISSIONS.testability), renderReviewMission(REVIEW_MISSIONS.testability)));
+});

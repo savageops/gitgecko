@@ -1,0 +1,33 @@
+# GitGecko review dogfood lane. The trusted base action is the same composite
+# action customers consume; contributor code enters only as GitHub patch data.
+name: gitgecko-review
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout trusted action
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Review pull request
+        uses: ./
+        with:
+          pathway: auto
+          max_timeout: "600"
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GITGECKO_LOCAL_BASE_URL: ${{ secrets.GITGECKO_LOCAL_BASE_URL }}

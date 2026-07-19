@@ -1,0 +1,53 @@
+{
+  "name": "@gitgecko/core",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Framework-agnostic shared types for gitgecko — the cross-owner type vocabulary. Consumed by packages/socket, all apps, and all plugs. (Continue core-boundary pattern, P-frontend-12.)",
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js",
+    "./ids": {
+      "types": "./dist/ids.d.ts",
+      "import": "./dist/ids.js",
+      "default": "./dist/ids.js"
+    },
+    "./result": {
+      "types": "./dist/result.d.ts",
+      "import": "./dist/result.js",
+      "default": "./dist/result.js"
+    },
+    "./product-identity": {
+      "types": "./dist/product-identity.d.ts",
+      "import": "./dist/product-identity.js",
+      "default": "./dist/product-identity.js"
+    },
+    "./deployment": {
+      "types": "./dist/deployment.d.ts",
+      "import": "./dist/deployment.js",
+      "default": "./dist/deployment.js"
+    },
+    "./github-repository": {
+      "types": "./dist/github-repository.d.ts",
+      "import": "./dist/github-repository.js",
+      "default": "./dist/github-repository.js"
+    }
+  },
+  "scripts": {
+    "build": "rimraf dist && tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --test --import tsx src/**/*.test.ts"
+  },
+  "dependencies": {
+    "zod": "4.4.3",
+    "better-sqlite3": "12.11.1"
+  },
+  "devDependencies": {
+    "@types/node": "22.0.0",
+    "typescript": "5.6.3",
+    "@types/better-sqlite3": "7.6.13",
+    "tsx": "4.19.0",
+    "rimraf": "6.0.0"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts"
+}

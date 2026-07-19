@@ -1,0 +1,30 @@
+{
+  "$schema": "../../../packages/socket/schemas/plug-manifest.v1.json",
+  "schemaVersion": "1.0.0",
+  "id": "review-commands",
+  "name": "Review Command Handlers",
+  "owner": "review",
+  "version": "0.0.1",
+  "description": "The /describe /review /improve /ask /resolve command taxonomy (CR-§1.2, P-plugin-11). Each handler grounds in repo context via retrieve, runs the agent, records a trace (G8). Non-exclusive: many command handlers coexist.",
+  "capabilities": [
+    "command"
+  ],
+  "targets": {
+    "providers": [],
+    "plans": [],
+    "env": []
+  },
+  "dependencies": {
+    "requires": [],
+    "recommends": []
+  },
+  "permissions": {
+    "network": [],
+    "filesystem": [],
+    "env": [],
+    "mutatesTools": false
+  },
+  "entrypoint": "./plug.ts",
+  "hooks": false,
+  "mcp": false
+}

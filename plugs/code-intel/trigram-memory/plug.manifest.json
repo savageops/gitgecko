@@ -1,0 +1,30 @@
+{
+  "$schema": "../../../packages/socket/schemas/plug-manifest.v1.json",
+  "schemaVersion": "1.0.0",
+  "id": "code-intel-trigram-memory",
+  "name": "In-Memory Trigram Lexical Index",
+  "owner": "code-intel",
+  "version": "0.0.1",
+  "description": "Trigram/BM25 lexical search index (pure-TS, no native SQLite dep). Salvaged from continue's FullTextSearchCodebaseIndex (P-codeintel-7): FTS5 tokenize='trigram' + BM25 ranking + pathWeightMultiplier (10x). The lexical pillar of hybrid retrieval fusion (25% weight per P-codeintel-9). Works everywhere + is fully testable.",
+  "capabilities": [
+    "search-lexical"
+  ],
+  "targets": {
+    "providers": [],
+    "plans": [],
+    "env": []
+  },
+  "dependencies": {
+    "requires": [],
+    "recommends": []
+  },
+  "permissions": {
+    "network": [],
+    "filesystem": [],
+    "env": [],
+    "mutatesTools": false
+  },
+  "entrypoint": "./plug.ts",
+  "hooks": false,
+  "mcp": false
+}

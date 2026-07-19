@@ -1,0 +1,27 @@
+{
+  "name": "@gitgecko/plug-graph-build",
+  "version": "0.0.1",
+  "private": true,
+  "description": "graph-build plug for the code-intel owner. Second step of Greptile's pipeline (GP-§8b): parsed tags → typed code graph per code-graph-rag schema (P-codeintel-3) + FQN assignment (P-codeintel-4). Pure buildGraph + pluggable GraphStore.",
+  "type": "module",
+  "exports": {
+    ".": "./dist/plug.js"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "build": "rimraf dist && tsc -p tsconfig.build.json"
+  },
+  "dependencies": {
+    "@gitgecko/code-intel": "workspace:*",
+    "@gitgecko/core": "workspace:*",
+    "@gitgecko/socket": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "22.0.0",
+    "rimraf": "6.0.0",
+    "tsx": "4.19.0",
+    "typescript": "5.6.3"
+  },
+  "main": "./dist/plug.js",
+  "types": "./dist/plug.d.ts"
+}

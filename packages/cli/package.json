@@ -1,0 +1,60 @@
+{
+  "name": "@gitgecko/cli",
+  "version": "0.1.6",
+  "private": true,
+  "description": "GitGecko CLI. Detects Codex, Claude, or OpenCode on PATH and uses the developer's existing login.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "bin": {
+    "gitgecko": "bin/gitgecko.js"
+  },
+  "exports": {
+    ".": "./dist/index.js",
+    "./auth": "./dist/auth.js",
+    "./orchestrator": "./dist/orchestrator.js"
+  },
+  "scripts": {
+    "build": "rimraf dist && tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --test --import tsx src/**/*.test.ts"
+  },
+  "dependencies": {
+    "@gitgecko/core": "workspace:*",
+    "@gitgecko/instructions": "workspace:*",
+    "@gitgecko/model-client": "workspace:*",
+    "@gitgecko/plans": "workspace:*",
+    "@gitgecko/plug-agent-claude-code": "workspace:*",
+    "@gitgecko/plug-agent-codex": "workspace:*",
+    "@gitgecko/plug-agent-gitgecko-native": "workspace:*",
+    "@gitgecko/plug-agent-opencode": "workspace:*",
+    "@gitgecko/plug-agent-pi": "workspace:*",
+    "@gitgecko/plug-sandbox-backends": "workspace:*",
+    "@gitgecko/plug-review-commands": "workspace:*",
+    "@gitgecko/plug-rules-baseline-pack": "workspace:*",
+    "@gitgecko/plug-rules-evaluators": "workspace:*",
+    "@gitgecko/review": "workspace:*",
+    "@gitgecko/rules": "workspace:*",
+    "@gitgecko/sandbox": "workspace:*",
+    "@gitgecko/socket": "workspace:*",
+    "open": "11.0.0",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@gitgecko/code-intel": "workspace:*",
+    "@gitgecko/notify": "workspace:*",
+    "@gitgecko/plug-chunk": "workspace:*",
+    "@gitgecko/plug-embed": "workspace:*",
+    "@gitgecko/plug-graph-build": "workspace:*",
+    "@gitgecko/plug-retrieve": "workspace:*",
+    "@gitgecko/plug-tree-sitter-parse": "workspace:*",
+    "@gitgecko/trace": "workspace:*",
+    "@types/node": "22.0.0",
+    "rimraf": "6.0.0",
+    "tsx": "4.19.0",
+    "typescript": "5.6.3"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "keywords": [],
+  "author": ""
+}

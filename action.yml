@@ -1,0 +1,133 @@
+# GitGecko — reusable GitHub Action for code review with installed tools or model routes.
+#
+# Drop-in usage in any repo's workflow:
+#
+#   permissions:
+#     contents: read
+#     pull-requests: write
+#     id-token: write
+#   steps:
+#     - uses: savageops/gitgecko@<commit-sha>
+#       with:
+#         cloud_url: https://gitgecko.com
+#
+# The caller must checkout the repository with fetch-depth: 0 before this
+# action for local or configured-model mode. Cloud mode uses GitHub OIDC and requires the
+# repository to be linked to GitGecko; the server fetches the authoritative PR
+# diff. Both modes post the result as a comment.
+#
+# Salvaged pattern: pullfrog's action.yml (inputs + runs.node) + pr-agent's
+# GitHub Action shape. GitGecko simplifies: no prompt input needed (the review
+# persona + rules are built in), no model selection (auto-detected from installed CLIs or configured routes).
+
+name: "GitGecko Review"
+description: "Code review with repeatable rules, an installed coding CLI, or a configured model route."
+author: "GitGecko"
+branding:
+  icon: "eye"
+  color: "blue"
+
+inputs:
+  cloud_url:
+    description: "GitGecko cloud URL. When set, use short-lived GitHub OIDC and the canonical cloud review owner."
+    required: false
+    default: ""
+  pathway:
+    description: "Review path: auto, codex, claude, opencode, pi, deterministic, native-loop, or local. Auto uses an installed CLI when one is available."
+    required: false
+    default: "auto"
+  max_timeout:
+    description: "Maximum review time in seconds. Default: 600 (10 min)."
+    required: false
+    default: "600"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Node
+      uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      with:
+        node-version: "22"
+
+    - name: Install released GitGecko CLI
+      if: inputs.cloud_url == ''
+      shell: bash
+      run: |
+        # The action commit and npm package share one version. Install the
+        # already-proved release artifact instead of rebuilding the monorepo in
+        # every consumer repository.
+        VERSION=$(node -p "require('${{ github.action_path }}/package.json').version")
+        npm install --global "gitgecko@$VERSION" --ignore-scripts
+        gitgecko version
+
+    - name: Run GitGecko review
+      shell: bash
+      env:
+        ANTHROPIC_API_KEY: ${{ env.ANTHROPIC_API_KEY }}
+        OPENAI_API_KEY: ${{ env.OPENAI_API_KEY }}
+        GITGECKO_LOCAL_BASE_URL: ${{ env.GITGECKO_LOCAL_BASE_URL }}
+        GITGECKO_BASE_REF: ${{ github.base_ref }}
+        GITGECKO_PR_TITLE: ${{ github.event.pull_request.title || 'Review' }}
+        GITGECKO_CLOUD_URL: ${{ inputs.cloud_url }}
+        GITGECKO_PR_NUMBER: ${{ github.event.pull_request.number }}
+        GITGECKO_PATHWAY: ${{ inputs.pathway }}
+        GITGECKO_MAX_TIMEOUT: ${{ inputs.max_timeout }}
+        GITGECKO_ACTION_PATH: ${{ github.action_path }}
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        bash "$GITGECKO_ACTION_PATH/scripts/run-action-review.sh"
+
+    - name: Post review comment
+      uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+      with:
+        script: |
+          const output = process.env.GITGECKO_REVIEW_OUTPUT || '(no output)';
+          if (!context.issue.number) {
+            core.info('No pull request is associated with this event; review output remains in the action log.');
+            return;
+          }
+          const boundedOutput = output.length > 60000
+            ? `${output.slice(0, 60000)}\n\n[output truncated at 60,000 characters]`
+            : output;
+          const marker = '<!-- gitgecko-review -->';
+          const body = [
+            marker,
+            '## GitGecko Review',
+            '',
+            boundedOutput,
+            '',
+            '---',
+            '_Automated by [GitGecko](https://gitgecko.com)._',
+          ].join('\n');
+
+          const owner = context.repo.owner;
+          const repo = context.repo.repo;
+          const issue_number = context.issue.number;
+          const comments = await github.paginate(github.rest.issues.listComments, {
+            owner,
+            repo,
+            issue_number,
+            per_page: 100,
+          });
+          const existing = comments.find(
+            (comment) => comment.user?.login === 'github-actions[bot]' && comment.body?.includes(marker),
+          );
+
+          await (existing
+            ? github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: existing.id,
+                body,
+              })
+            : github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number,
+                body,
+              }));
+
+    - name: Enforce review result
+      if: always()
+      shell: bash
+      run: test "${GITGECKO_REVIEW_EXIT_CODE:-1}" -eq 0

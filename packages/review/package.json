@@ -1,0 +1,37 @@
+{
+  "name": "@gitgecko/review",
+  "version": "0.0.0",
+  "private": true,
+  "description": "gitgecko review owner — the CodeRabbit-competing agent loop (02-architecture-overview §2, 05-agent-runtime-and-review-loop). Agent adapter (P-plugin-3), command taxonomy (CR-§1.2), mutates gate (P-plugin-7), trace recording. Consumes the code-intel retrieve capability to ground reviews.",
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js",
+    "./agent": "./dist/agent.js",
+    "./commands": "./dist/commands.js",
+    "./native-agents": "./dist/native-agents.js",
+    "./native-command": "./dist/native-command.js",
+    "./native-provider-runtime": "./dist/native-provider-runtime.js",
+    "./native-threads": "./dist/native-threads.js"
+  },
+  "scripts": {
+    "build": "rimraf dist && tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --test --import tsx src/**/*.test.ts"
+  },
+  "dependencies": {
+    "@gitgecko/core": "workspace:*",
+    "@gitgecko/model-client": "workspace:*",
+    "@gitgecko/socket": "workspace:*",
+    "@gitgecko/rules": "workspace:*",
+    "@gitgecko/sandbox": "workspace:*",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "typescript": "5.6.3",
+    "tsx": "4.19.0",
+    "@types/node": "22.0.0",
+    "rimraf": "6.0.0"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts"
+}

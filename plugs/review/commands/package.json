@@ -1,0 +1,29 @@
+{
+  "name": "@gitgecko/plug-review-commands",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Review command handlers for the review owner. The /describe /review /improve /ask taxonomy (CR-§1.2, P-plugin-11). Each command grounds in repo context via retrieve, runs the agent, records a trace.",
+  "type": "module",
+  "exports": {
+    ".": "./dist/plug.js"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --test --import tsx plug.test.ts",
+    "build": "rimraf dist && tsc -p tsconfig.build.json"
+  },
+  "dependencies": {
+    "@gitgecko/core": "workspace:*",
+    "@gitgecko/instructions": "workspace:*",
+    "@gitgecko/review": "workspace:*",
+    "@gitgecko/socket": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "22.0.0",
+    "rimraf": "6.0.0",
+    "tsx": "4.19.0",
+    "typescript": "5.6.3"
+  },
+  "main": "./dist/plug.js",
+  "types": "./dist/plug.d.ts"
+}

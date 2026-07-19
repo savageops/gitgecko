@@ -1,0 +1,28 @@
+{
+  "name": "@gitgecko/plug-mcp-meta-tools",
+  "version": "0.0.1",
+  "private": true,
+  "description": "The second mcp-gateway plug (INV-2.3 proving plug) — fits the mcp-gateway socket alongside plug-mcp-exposers. Exposes operational/introspection MCP tools: list_plugs (enumerate active plugs + owners), health_check (orchestrator liveness), and describe_models (the model catalog). These let any MCP-consuming agent query GitGecko's own state. Proves the non-exclusive interchangeability invariant: both exposer plugs coexist, each registering distinct tools.",
+  "type": "module",
+  "exports": {
+    ".": "./dist/plug.js"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "build": "rimraf dist && tsc -p tsconfig.build.json",
+    "test": "node --test --import tsx plug.test.ts"
+  },
+  "dependencies": {
+    "@gitgecko/core": "workspace:*",
+    "@gitgecko/mcp-gateway": "workspace:*",
+    "@gitgecko/socket": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "22.0.0",
+    "rimraf": "6.0.0",
+    "tsx": "4.19.0",
+    "typescript": "5.6.3"
+  },
+  "main": "./dist/plug.js",
+  "types": "./dist/plug.d.ts"
+}

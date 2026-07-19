@@ -1,0 +1,28 @@
+{
+  "name": "@gitgecko/plug-rules-baseline-pack",
+  "version": "0.0.1",
+  "private": true,
+  "description": "The second rules plug (INV-2.3 proving plug) — fits the rules socket alongside plug-rules-evaluators. Ships a pack of pre-built lexical rules for common security/baseline defect patterns: hardcoded secrets, eval usage, disabled TLS, dangerous innerHTML, SQL string concatenation. Each rule is a lexical contribution that the rules engine evaluates. Proves the non-exclusive interchangeability invariant: both plugs register 'evaluate' contributions and coexist without conflict.",
+  "type": "module",
+  "exports": {
+    ".": "./dist/plug.js"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "build": "rimraf dist && tsc -p tsconfig.build.json",
+    "test": "node --test --import tsx plug.test.ts"
+  },
+  "dependencies": {
+    "@gitgecko/core": "workspace:*",
+    "@gitgecko/rules": "workspace:*",
+    "@gitgecko/socket": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "22.0.0",
+    "rimraf": "6.0.0",
+    "tsx": "4.19.0",
+    "typescript": "5.6.3"
+  },
+  "main": "./dist/plug.js",
+  "types": "./dist/plug.d.ts"
+}

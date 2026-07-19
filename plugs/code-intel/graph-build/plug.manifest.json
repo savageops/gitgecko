@@ -1,0 +1,30 @@
+{
+  "$schema": "../../../packages/socket/schemas/plug-manifest.v1.json",
+  "schemaVersion": "1.0.0",
+  "id": "code-intel-graph-build",
+  "name": "Code Graph Builder",
+  "owner": "code-intel",
+  "version": "0.0.1",
+  "description": "Builds the code knowledge graph from parsed tags. Schema: code-graph-rag 16-node/15-edge (P-codeintel-3). FQN assignment + same-file/cross-file call resolution (P-codeintel-4). Second step of Greptile's pipeline (GP-§8b).",
+  "capabilities": [
+    "graph"
+  ],
+  "targets": {
+    "providers": [],
+    "plans": [],
+    "env": []
+  },
+  "dependencies": {
+    "requires": [],
+    "recommends": []
+  },
+  "permissions": {
+    "network": [],
+    "filesystem": [],
+    "env": [],
+    "mutatesTools": false
+  },
+  "entrypoint": "./plug.ts",
+  "hooks": false,
+  "mcp": false
+}

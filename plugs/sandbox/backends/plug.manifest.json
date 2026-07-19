@@ -1,0 +1,30 @@
+{
+  "$schema": "../../../packages/socket/schemas/plug-manifest.v1.json",
+  "schemaVersion": "1.0.0",
+  "id": "sandbox-backends",
+  "name": "Sandbox Backends (in-memory + subprocess)",
+  "owner": "sandbox",
+  "version": "0.0.1",
+  "description": "Two sandbox backends: InMemorySandbox (simulated, for tests) + SubprocessSandbox (real process execution for local dev). Production swaps in e2b/gvisor/firecracker behind the same SandboxBackend interface. Isolated execution — the security wedge (CR-§4.1).",
+  "capabilities": [
+    "exec"
+  ],
+  "targets": {
+    "providers": [],
+    "plans": [],
+    "env": []
+  },
+  "dependencies": {
+    "requires": [],
+    "recommends": []
+  },
+  "permissions": {
+    "network": [],
+    "filesystem": [],
+    "env": [],
+    "mutatesTools": true
+  },
+  "entrypoint": "./plug.ts",
+  "hooks": false,
+  "mcp": false
+}

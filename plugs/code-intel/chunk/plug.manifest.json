@@ -1,0 +1,30 @@
+{
+  "$schema": "../../../packages/socket/schemas/plug-manifest.v1.json",
+  "schemaVersion": "1.0.0",
+  "id": "code-intel-chunk",
+  "name": "Smart-Collapse Chunker",
+  "owner": "code-intel",
+  "version": "0.0.1",
+  "description": "AST-aware code chunker salvaged from continue (P-codeintel-8). Walks the tree-sitter AST, collapses function bodies to '...' over budget, injects class context into method chunks. Third step of Greptile's pipeline — produces the units the embeddings pillar embeds.",
+  "capabilities": [
+    "chunk"
+  ],
+  "targets": {
+    "providers": [],
+    "plans": [],
+    "env": []
+  },
+  "dependencies": {
+    "requires": [],
+    "recommends": []
+  },
+  "permissions": {
+    "network": [],
+    "filesystem": [],
+    "env": [],
+    "mutatesTools": false
+  },
+  "entrypoint": "./plug.ts",
+  "hooks": false,
+  "mcp": false
+}

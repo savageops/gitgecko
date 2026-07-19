@@ -1,0 +1,28 @@
+{
+  "name": "@gitgecko/plug-sandbox-dry-run-guard",
+  "version": "0.0.1",
+  "private": true,
+  "description": "The second sandbox plug (INV-2.3 proving plug) — fits the sandbox socket alongside plug-sandbox-backends. A policy-only backend that validates ExecSpecs against the isolation policy (command blocklist, network deny, timeout, env constraints) and returns a dry-run result describing what WOULD happen, without actually executing anything. Useful for CI pre-checks, security audits, and test environments where real execution is unsafe or unnecessary. Proves the exclusive interchangeability invariant: either this backend or the subprocess backend can be the active sandbox.",
+  "type": "module",
+  "exports": {
+    ".": "./dist/plug.js"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "build": "rimraf dist && tsc -p tsconfig.build.json",
+    "test": "node --test --import tsx plug.test.ts"
+  },
+  "dependencies": {
+    "@gitgecko/core": "workspace:*",
+    "@gitgecko/sandbox": "workspace:*",
+    "@gitgecko/socket": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "22.0.0",
+    "rimraf": "6.0.0",
+    "tsx": "4.19.0",
+    "typescript": "5.6.3"
+  },
+  "main": "./dist/plug.js",
+  "types": "./dist/plug.d.ts"
+}

@@ -1,0 +1,27 @@
+{
+  "name": "@gitgecko/plug-retrieve",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Hybrid retrieval fusion plug for the code-intel owner. Salvaged from continue's NoRerankerRetrievalPipeline (P-codeintel-9): fuses embeddings (50%) + lexical/trigram (25%) + graph expansion (25%) into one ranked, deduplicated result set. Fifth step of Greptile's pipeline — query a codebase.",
+  "type": "module",
+  "exports": {
+    ".": "./dist/plug.js"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "build": "rimraf dist && tsc -p tsconfig.build.json"
+  },
+  "dependencies": {
+    "@gitgecko/code-intel": "workspace:*",
+    "@gitgecko/core": "workspace:*",
+    "@gitgecko/socket": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "22.0.0",
+    "rimraf": "6.0.0",
+    "tsx": "4.19.0",
+    "typescript": "5.6.3"
+  },
+  "main": "./dist/plug.js",
+  "types": "./dist/plug.d.ts"
+}

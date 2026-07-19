@@ -1,0 +1,29 @@
+{
+  "name": "@gitgecko/mcp-gateway",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The canonical home of the mcp-gateway owner (src/tool.ts exports mcpGatewayOwner — the OwnerSpec the socket Registry consumes). Defines the McpTool shape, the ToolRegistry interface, and the tool-exposer contribution type. This is the owner LIBRARY; a deployable HTTP server and the plug that bridges code-intel/rules/review capabilities into McpTool contributions live alongside (see plugs/mcp-gateway/exposers). The inverse of CodeRabbit's MCP-client posture (CR-§3) and Greptile's closed/hosted MCP (GP-§3): any agent can consume gitgecko's engine.",
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js",
+    "./tool": "./dist/tool.js"
+  },
+  "scripts": {
+    "build": "rimraf dist && tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --test --import tsx src/**/*.test.ts"
+  },
+  "dependencies": {
+    "@gitgecko/core": "workspace:*",
+    "@gitgecko/socket": "workspace:*",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "typescript": "5.6.3",
+    "tsx": "4.19.0",
+    "@types/node": "22.0.0",
+    "rimraf": "6.0.0"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts"
+}

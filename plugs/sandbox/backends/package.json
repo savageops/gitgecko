@@ -1,0 +1,28 @@
+{
+  "name": "@gitgecko/plug-sandbox-backends",
+  "version": "0.0.1",
+  "private": true,
+  "description": "In-memory simulation and trusted-local subprocess backends for the GitGecko sandbox owner. Neither backend claims OS-level isolation.",
+  "type": "module",
+  "exports": {
+    ".": "./dist/plug.js"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "build": "rimraf dist && tsc -p tsconfig.build.json",
+    "test": "node --test --import tsx plug.test.ts"
+  },
+  "dependencies": {
+    "@gitgecko/core": "workspace:*",
+    "@gitgecko/sandbox": "workspace:*",
+    "@gitgecko/socket": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "22.0.0",
+    "rimraf": "6.0.0",
+    "tsx": "4.19.0",
+    "typescript": "5.6.3"
+  },
+  "main": "./dist/plug.js",
+  "types": "./dist/plug.d.ts"
+}

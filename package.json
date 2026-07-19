@@ -1,0 +1,85 @@
+{
+  "name": "gitgecko",
+  "version": "0.1.6",
+  "private": false,
+  "description": "GitGecko - local-first code review with repeatable checks and installed tools.",
+  "license": "Apache-2.0",
+  "homepage": "https://gitgecko.com",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/savageops/gitgecko.git"
+  },
+  "bugs": {
+    "url": "https://github.com/savageops/gitgecko/issues"
+  },
+  "type": "module",
+  "packageManager": "pnpm@11.7.0",
+  "engines": {
+    "node": ">=22.19.0",
+    "pnpm": ">=11"
+  },
+  "bin": {
+    "gitgecko": "dist/gitgecko.js"
+  },
+  "exports": {
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "SKILL.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "pnpm -r --sort --if-present --workspace-concurrency=1 build",
+    "build:cli": "pnpm --filter @gitgecko/cli... --sort --workspace-concurrency=1 build && node scripts/build-cli.mjs",
+    "prepack": "pnpm build:cli",
+    "postpack": "node dist/gitgecko.js version && node dist/gitgecko.js help",
+    "typecheck": "node scripts/validate-workspace-graph.mjs && pnpm build && pnpm validate:artifacts && pnpm -r --sort --if-present --workspace-concurrency=1 typecheck",
+    "test": "node scripts/validate-workspace-graph.mjs && pnpm build && pnpm validate:artifacts && pnpm -r --sort --if-present --workspace-concurrency=1 test",
+    "validate:graph": "node scripts/validate-workspace-graph.mjs",
+    "validate:artifacts": "node --test scripts/validate-build-artifacts.test.mjs && node scripts/validate-build-artifacts.mjs",
+    "validate:pins": "node scripts/validate-pins.mjs",
+    "lint": "pnpm -r --if-present lint",
+    "clean": "pnpm -r exec rimraf dist node_modules .turbo"
+  },
+  "dependencies": {
+    "@ast-grep/napi": "0.44.0",
+    "@earendil-works/pi-ai": "0.80.3",
+    "@earendil-works/pi-coding-agent": "0.80.3",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@gitgecko/plans": "workspace:*",
+    "@gitgecko/plug-agent-codex": "workspace:*",
+    "@gitgecko/plug-agent-gitgecko-native": "workspace:*",
+    "@gitgecko/plug-chunk": "workspace:*",
+    "@gitgecko/plug-embed": "workspace:*",
+    "@gitgecko/plug-graph-build": "workspace:*",
+    "@gitgecko/plug-mcp-exposers": "workspace:*",
+    "@gitgecko/plug-model-anthropic": "workspace:*",
+    "@gitgecko/plug-model-openai": "workspace:*",
+    "@gitgecko/plug-retrieve": "workspace:*",
+    "@gitgecko/plug-review-commands": "workspace:*",
+    "@gitgecko/plug-rules-evaluators": "workspace:*",
+    "@gitgecko/plug-sandbox-backends": "workspace:*",
+    "@gitgecko/plug-tree-sitter-parse": "workspace:*",
+    "@types/node": "22.0.0",
+    "esbuild": "0.28.1",
+    "rimraf": "6.0.0",
+    "typescript": "5.6.3"
+  },
+  "main": "./dist/gitgecko.js",
+  "keywords": [
+    "code-review",
+    "cli",
+    "mcp",
+    "codex",
+    "claude",
+    "opencode"
+  ],
+  "author": "SavageOps"
+}

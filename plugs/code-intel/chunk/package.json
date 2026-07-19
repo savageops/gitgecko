@@ -1,0 +1,29 @@
+{
+  "name": "@gitgecko/plug-chunk",
+  "version": "0.0.1",
+  "private": true,
+  "description": "AST-aware smart-collapse chunker plug for the code-intel owner. Salvaged from continue (P-codeintel-8): tree-sitter walk, function-body collapse, class-context injection, token-budget respect. Third step of Greptile's pipeline — feeds the embeddings pillar.",
+  "type": "module",
+  "exports": {
+    ".": "./dist/plug.js"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "build": "rimraf dist && tsc -p tsconfig.build.json"
+  },
+  "dependencies": {
+    "@gitgecko/code-intel": "workspace:*",
+    "@gitgecko/core": "workspace:*",
+    "@gitgecko/socket": "workspace:*",
+    "tree-sitter-wasm": "1.1.0",
+    "web-tree-sitter": "0.26.0"
+  },
+  "devDependencies": {
+    "@types/node": "22.0.0",
+    "rimraf": "6.0.0",
+    "tsx": "4.19.0",
+    "typescript": "5.6.3"
+  },
+  "main": "./dist/plug.js",
+  "types": "./dist/plug.d.ts"
+}

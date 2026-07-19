@@ -1,0 +1,29 @@
+{
+  "name": "@gitgecko/plug-agent-codex",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Codex CLI agent backend for the review owner (P-plugin-3 Agent adapter). Shells out to the developer's installed `codex` binary — zero-config, uses their existing OpenAI login. Detected on PATH via native-agent detection (goal §1.1).",
+  "type": "module",
+  "exports": {
+    ".": "./dist/plug.js"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --test --import tsx *.test.ts",
+    "build": "rimraf dist && tsc -p tsconfig.build.json"
+  },
+  "dependencies": {
+    "@gitgecko/core": "workspace:*",
+    "@gitgecko/instructions": "workspace:*",
+    "@gitgecko/review": "workspace:*",
+    "@gitgecko/socket": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "22.0.0",
+    "rimraf": "6.0.0",
+    "tsx": "4.19.0",
+    "typescript": "5.6.3"
+  },
+  "main": "./dist/plug.js",
+  "types": "./dist/plug.d.ts"
+}

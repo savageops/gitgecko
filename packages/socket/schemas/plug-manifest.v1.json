@@ -1,0 +1,141 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://gitgecko.dev/schemas/plug-manifest.v1.json",
+  "title": "gitgecko Plug Manifest v1",
+  "description": "Editor-validation JSON Schema for plug.manifest.json. The runtime source-of-truth is the Zod schema at packages/socket/src/manifest.ts (manifestSchema). This file mirrors the Zod shape for IDE red-squiggle validation per the Continue dual-source pattern (P-frontend-11). If the two ever diverge, the Zod schema wins (it is what the registry enforces). Implements .docs/todo/system-design/03-plugin-socket-contract.md §2.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "id",
+    "name",
+    "owner",
+    "version",
+    "description",
+    "capabilities",
+    "entrypoint"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "const": "1.0.0",
+      "description": "Manifest schema version. Must match MANIFEST_SCHEMA_VERSION in packages/socket/src/manifest.ts."
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]+$",
+      "description": "Plug id — kebab-case, globally unique, stable across versions."
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Human-readable plug name."
+    },
+    "owner": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Owner name (validated against OwnerName by the registry, not here). One of: model, review, code-intel, rules, billing, mcp-gateway, sandbox, commands."
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+",
+      "description": "Plug's own semver version (independent of schemaVersion)."
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1
+    },
+    "capabilities": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 },
+      "description": "Non-empty subset of the owner's capability enum. Exact tokens validated by the registry (each owner declares its own enum — 03 §4)."
+    },
+    "targets": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "providers": { "type": "array", "items": { "type": "string" }, "default": [] },
+        "plans": { "type": "array", "items": { "type": "string" }, "default": [] },
+        "env": { "type": "array", "items": { "type": "string" }, "default": [] }
+      },
+      "default": { "providers": [], "plans": [], "env": [] }
+    },
+    "dependencies": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "requires": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [],
+          "description": "Hard deps — must be active before this plug loads (topo order, 03 §8)."
+        },
+        "recommends": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [],
+          "description": "Soft deps — load if present, do not fail if absent."
+        }
+      },
+      "default": { "requires": [], "recommends": [] }
+    },
+    "config": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema"],
+      "properties": {
+        "schema": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Path/ref to the plug's own JSON Schema for its config. Validated before activate()."
+        }
+      }
+    },
+    "permissions": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "network": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [],
+          "description": "Allowed network endpoints (host:port). Empty = no network."
+        },
+        "filesystem": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [],
+          "description": "Allowed filesystem paths (globs). Empty = no FS access."
+        },
+        "env": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [],
+          "description": "Required env vars. Empty = no env needed."
+        },
+        "mutatesTools": {
+          "type": "boolean",
+          "default": false,
+          "description": "Manifest-side mirror of the mutates flag (P-plugin-7). If true, every mutating tool must carry mutates:true and the derived deny list is non-empty (throws if empty — 03 §6 invariant)."
+        }
+      },
+      "default": { "network": [], "filesystem": [], "env": [], "mutatesTools": false }
+    },
+    "entrypoint": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Relative path to the plug's entrypoint module (e.g. ./plug.ts). Must export setup() and match the manifest."
+    },
+    "hooks": {
+      "type": "boolean",
+      "default": false,
+      "description": "Does this plug attach a HookBag (beforeRun/afterRun/beforeTool/afterTool)? Only if true."
+    },
+    "mcp": {
+      "type": "boolean",
+      "default": false,
+      "description": "Does this plug expose an MCP server surface?"
+    }
+  }
+}
