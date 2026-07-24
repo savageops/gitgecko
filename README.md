@@ -12,14 +12,13 @@ read-only by default and do not require a GitGecko account.
 Requires Node.js 22 or newer.
 
 ```bash
-npm i -g gitgecko
-
-gitgecko doctor   # see the detected review path
-gitgecko review  # review the current repository
+npx gitgecko@latest doctor   # see the detected review path
+npx gitgecko@latest review  # review the current repository
 ```
 
-The npm package is the complete local CLI. You do not need to clone the
-repository for this workflow.
+`npx` always runs the latest published version, so there is nothing to install
+globally. The npm package is the complete local CLI. You do not need to clone
+the repository for this workflow.
 
 `doctor` is the best first command. It checks Node, installed coding CLIs,
 model routes, and the selected path. If something is missing, it names the next

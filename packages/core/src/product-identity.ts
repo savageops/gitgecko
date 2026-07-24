@@ -7,7 +7,7 @@ export const productIdentity = {
   cloudUrl: "https://app.gitgecko.com",
   packageName: "gitgecko",
   cliCommand: "gitgecko",
-  installCommand: "npm i -g gitgecko",
+  installCommand: "npx gitgecko@latest",
   reviewCommand: "gitgecko review",
   repositoryUrl: "https://github.com/savageops/gitgecko",
   authDirectory: "gitgecko",

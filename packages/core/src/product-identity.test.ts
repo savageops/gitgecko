@@ -11,7 +11,7 @@ describe("product identity", () => {
     assert.equal(productIdentity.cloudUrl, "https://app.gitgecko.com");
     assert.equal(productIdentity.packageName, "gitgecko");
     assert.equal(productIdentity.cliCommand, "gitgecko");
-    assert.equal(productIdentity.installCommand, "npm i -g gitgecko");
+    assert.equal(productIdentity.installCommand, "npx gitgecko@latest");
     assert.equal(productIdentity.reviewCommand, "gitgecko review");
   });
 
