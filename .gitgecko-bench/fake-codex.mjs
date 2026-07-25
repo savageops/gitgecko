@@ -20,9 +20,7 @@ log({ phase: "invoke" });
 if (args[0] === "--version") {
   console.log("codex-cli 0.144.1");
   process.exit(0);
-}
-
-if (args[0] === "app-server" && args[1] === "generate-json-schema") {
+} else if (args[0] === "app-server" && args[1] === "generate-json-schema") {
   const outIndex = args.indexOf("--out");
   const out = outIndex >= 0 ? args[outIndex + 1] : undefined;
   if (!out) {
@@ -36,15 +34,16 @@ if (args[0] === "app-server" && args[1] === "generate-json-schema") {
   }));
   log({ phase: "schema-generated", out });
   process.exit(0);
-}
-
-if (args[0] === "exec") {
+} else if (args[0] === "exec") {
   let prompt = "";
   process.stdin.setEncoding("utf8");
   process.stdin.on("data", (chunk) => { prompt += chunk; });
   process.stdin.on("end", () => {
     log({ phase: "exec", promptLength: prompt.length, promptPrefix: prompt.slice(0, 500) });
-    if (mode === "timeout") return setTimeout(() => {}, 10_000);
+    if (mode === "timeout") {
+      setTimeout(() => {}, 10_000);
+      return;
+    }
     if (mode === "exit-early") {
       process.stderr.write("synthetic early provider exit");
       process.exit(13);
@@ -65,10 +64,7 @@ if (args[0] === "exec") {
     }
     console.log(JSON.stringify({ type: "turn.completed" }));
   });
-  return;
-}
-
-if (args.length === 1 && args[0] === "app-server") {
+} else if (args.length === 1 && args[0] === "app-server") {
   const lines = readline.createInterface({ input: process.stdin });
   const send = (value) => process.stdout.write(`${JSON.stringify(value)}\n`);
   const threadId = "fake-codex-thread";
@@ -91,8 +87,7 @@ if (args.length === 1 && args[0] === "app-server") {
     }
     if (message.method === "turn/interrupt") process.exit(0);
   });
-  return;
+} else {
+  process.stderr.write(`unsupported fake Codex invocation: ${args.join(" ")}`);
+  process.exit(2);
 }
-
-process.stderr.write(`unsupported fake Codex invocation: ${args.join(" ")}`);
-process.exit(2);
