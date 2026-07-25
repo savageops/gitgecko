@@ -34,6 +34,14 @@ jobs:
       - name: Probe rule quality, argument handling, file scope, and diff parsing
         shell: bash
         run: node .gitgecko-bench/core-probe.mjs | tee "$RUNNER_TEMP/core-probe.json"
+      - name: Upload core evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: core-probe
+          path: ${{ runner.temp }}/core-probe.json
+          if-no-files-found: warn
+          retention-days: 1
 
   model-output-and-cloud-contract:
     runs-on: ubuntu-latest
@@ -48,6 +56,14 @@ jobs:
       - name: Probe model parsing, retries, data egress, device auth, hosted review, history, and logout
         shell: bash
         run: node .gitgecko-bench/model-and-cloud-probe.mjs | tee "$RUNNER_TEMP/model-cloud-probe.json"
+      - name: Upload model/cloud evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: model-cloud-probe
+          path: ${{ runner.temp }}/model-cloud-probe.json
+          if-no-files-found: warn
+          retention-days: 1
 
   runtime-check-security:
     runs-on: ubuntu-latest
@@ -62,6 +78,14 @@ jobs:
       - name: Probe runtime-check redaction, bounds, timeout, shell, and batch atomicity
         shell: bash
         run: node .gitgecko-bench/runtime-probe.mjs | tee "$RUNNER_TEMP/runtime-probe.json"
+      - name: Upload runtime evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: runtime-probe
+          path: ${{ runner.temp }}/runtime-probe.json
+          if-no-files-found: warn
+          retention-days: 1
 
   installed-agent-pathway:
     runs-on: ubuntu-latest
@@ -76,6 +100,14 @@ jobs:
       - name: Probe installed Codex selection, permissions, output parsing, failures, and timeout
         shell: bash
         run: node .gitgecko-bench/native-probe.mjs | tee "$RUNNER_TEMP/native-probe.json"
+      - name: Upload installed-agent evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: native-probe
+          path: ${{ runner.temp }}/native-probe.json
+          if-no-files-found: warn
+          retention-days: 1
 
   scale-package-and-performance:
     runs-on: ubuntu-latest
@@ -90,6 +122,14 @@ jobs:
       - name: Benchmark registry artifact, cold/warm startup, findings, bytes, memory, and concurrency
         shell: bash
         run: node .gitgecko-bench/bench-probe.mjs | tee "$RUNNER_TEMP/bench-probe.json"
+      - name: Upload benchmark evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: bench-probe
+          path: ${{ runner.temp }}/bench-probe.json
+          if-no-files-found: warn
+          retention-days: 1
 
   cross-platform-release:
     name: cross-platform-release (${{ matrix.os }})
@@ -109,6 +149,14 @@ jobs:
       - name: Probe released CLI on the platform
         shell: bash
         run: node .gitgecko-bench/platform-probe.mjs | tee "$RUNNER_TEMP/platform-probe.json"
+      - name: Upload platform evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: platform-probe-${{ matrix.os }}
+          path: ${{ runner.temp }}/platform-probe.json
+          if-no-files-found: warn
+          retention-days: 1
 
   node-resolution-boundary:
     name: node-resolution (${{ matrix.node }})
@@ -125,6 +173,7 @@ jobs:
       - name: Resolve plain, latest, and strict release channels from isolated caches
         shell: bash
         run: |
+          exec > >(tee "$RUNNER_TEMP/node-resolution.txt") 2>&1
           set -uo pipefail
           echo "node=$(node --version) npm=$(npm --version)"
           npm view gitgecko version dist-tags engines --json
@@ -154,6 +203,14 @@ jobs:
           echo "exit=$strict_code"
           cat "$RUNNER_TEMP/strict.out"
           cat "$RUNNER_TEMP/strict.err"
+      - name: Upload Node-resolution evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: node-resolution-${{ matrix.node }}
+          path: ${{ runner.temp }}/node-resolution.txt
+          if-no-files-found: warn
+          retention-days: 1
 
   website-onboarding-and-integrity:
     runs-on: ubuntu-latest
@@ -168,3 +225,11 @@ jobs:
       - name: Crawl links, benchmark routes, inspect TLS, metadata, commands, and security headers
         shell: bash
         run: node .gitgecko-bench/website-probe.mjs | tee "$RUNNER_TEMP/website-probe.json"
+      - name: Upload website evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: website-probe
+          path: ${{ runner.temp }}/website-probe.json
+          if-no-files-found: warn
+          retention-days: 1
