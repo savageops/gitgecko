@@ -1,0 +1,98 @@
+name: GitGecko Windows path probe
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  windows-path-contract:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: "22.19.0"
+      - name: Test relative, slash-based absolute, and native Windows file paths without eval
+        shell: bash
+        run: |
+          set -euo pipefail
+          export HOME="$RUNNER_TEMP/home"
+          export npm_config_cache="$RUNNER_TEMP/npm-cache"
+          mkdir -p "$HOME" "$RUNNER_TEMP/path-probe"
+          cd "$RUNNER_TEMP/path-probe"
+          git init -q
+          git config user.name "GitGecko E2E"
+          git config user.email "e2e@gitgecko.invalid"
+          cat > fixture.ts <<'TS'
+          export function run(expression: string): unknown {
+            return eval(expression);
+          }
+          export const apiKey = "WINDOWS_0123456789ABCDEF";
+          export const tls = { rejectUnauthorized: false };
+          TS
+
+          npx --yes gitgecko version
+
+          slash_absolute="$PWD/fixture.ts"
+          native_absolute="$(cygpath -w "$PWD/fixture.ts")"
+          printf 'relative=%s\nslash_absolute=%s\nnative_absolute=%s\n' \
+            "fixture.ts" "$slash_absolute" "$native_absolute"
+
+          set +e
+          npx --yes gitgecko review --pathway deterministic --file fixture.ts --json \
+            > "$RUNNER_TEMP/relative.json" 2> "$RUNNER_TEMP/relative.err"
+          relative_code=$?
+          npx --yes gitgecko review --pathway deterministic --file "$slash_absolute" --json \
+            > "$RUNNER_TEMP/slash.json" 2> "$RUNNER_TEMP/slash.err"
+          slash_code=$?
+          npx --yes gitgecko review --pathway deterministic --file "$native_absolute" --json \
+            > "$RUNNER_TEMP/native.json" 2> "$RUNNER_TEMP/native.err"
+          native_code=$?
+          set -e
+
+          printf 'exit relative=%s slash=%s native=%s\n' "$relative_code" "$slash_code" "$native_code"
+          for name in relative slash native; do
+            echo "===== $name stderr ====="
+            cat "$RUNNER_TEMP/$name.err"
+            echo "===== $name result ====="
+            node - "$RUNNER_TEMP/$name.json" <<'NODE'
+          const fs = require('node:fs');
+          const file = process.argv[2];
+          const raw = fs.readFileSync(file, 'utf8');
+          let value;
+          try { value = JSON.parse(raw); }
+          catch { console.log(raw); process.exit(2); }
+          console.log(JSON.stringify({
+            success: value.success,
+            failure: value.failure,
+            output: value.output,
+            schema: value.artifact?.schemaVersion,
+            mergeable: value.artifact?.mergeable,
+            findings: value.artifact?.findings?.map((finding) => ({
+              ruleId: finding.ruleId,
+              severity: finding.severity,
+              file: finding.file,
+            })),
+          }, null, 2));
+          NODE
+          done
+
+          test "$relative_code" -eq 1
+          test "$slash_code" -eq 1
+          test "$native_code" -eq 1
+          node - <<'NODE'
+          const fs = require('node:fs');
+          for (const name of ['relative', 'slash', 'native']) {
+            const value = JSON.parse(fs.readFileSync(`${process.env.RUNNER_TEMP}/${name}.json`, 'utf8'));
+            if (value.success !== true || value.artifact?.schemaVersion !== 'review.v2') {
+              throw new Error(`${name}: file path did not produce a review artifact`);
+            }
+            const ids = new Set(value.artifact.findings.map((finding) => finding.ruleId));
+            if (!ids.has('baseline-no-eval') || !ids.has('baseline-disabled-tls')) {
+              throw new Error(`${name}: expected findings missing`);
+            }
+          }
+          NODE
