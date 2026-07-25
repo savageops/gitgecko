@@ -1,0 +1,240 @@
+name: GitGecko npx latest full-process verification
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  review-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    env:
+      ANTHROPIC_API_KEY: ""
+      OPENAI_API_KEY: ""
+      GITGECKO_LOCAL_BASE_URL: ""
+    steps:
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: "22.19.0"
+      - name: Plain npx review, JSON schema, exit semantics, and auto fallback
+        shell: bash
+        run: |
+          set -euo pipefail
+          export HOME="$RUNNER_TEMP/home"
+          export npm_config_cache="$RUNNER_TEMP/npm-cache"
+          mkdir -p "$HOME" "$RUNNER_TEMP/repo"
+          cd "$RUNNER_TEMP/repo"
+          git init -q
+          git config user.name "GitGecko E2E"
+          git config user.email "e2e@gitgecko.invalid"
+          printf 'export const safe = true;\n' > app.ts
+          git add app.ts
+          git commit -qm baseline
+          cat > app.ts <<'TS'
+          export function execute(expression: string): unknown {
+            return eval(expression);
+          }
+          export const apiKey = "GG_E2E_0123456789ABCDEF";
+          export const tls = { rejectUnauthorized: false };
+          TS
+
+          npx --yes gitgecko version
+          npx --yes gitgecko doctor
+
+          set +e
+          npx --yes gitgecko review --pathway deterministic --json > "$RUNNER_TEMP/deterministic.json" 2> "$RUNNER_TEMP/deterministic.err"
+          deterministic_code=$?
+          npx --yes gitgecko review --json > "$RUNNER_TEMP/auto.json" 2> "$RUNNER_TEMP/auto.err"
+          auto_code=$?
+          npx --yes gitgecko review --pathway deterministic > "$RUNNER_TEMP/human.out" 2> "$RUNNER_TEMP/human.err"
+          human_code=$?
+          set -e
+
+          test "$deterministic_code" -eq 1
+          test "$auto_code" -eq 1
+          test "$human_code" -eq 1
+          test ! -s "$RUNNER_TEMP/deterministic.err"
+          test ! -s "$RUNNER_TEMP/auto.err"
+
+          node - <<'NODE'
+          const fs = require('node:fs');
+          for (const name of ['deterministic', 'auto']) {
+            const value = JSON.parse(fs.readFileSync(`${process.env.RUNNER_TEMP}/${name}.json`, 'utf8'));
+            const ids = value.artifact?.findings?.map(f => f.ruleId) ?? [];
+            if (value.success !== true) throw new Error(`${name}: execution failed`);
+            if (value.artifact?.schemaVersion !== 'review.v2') throw new Error(`${name}: wrong schema`);
+            if (value.artifact.mergeable !== false) throw new Error(`${name}: unsafe diff marked mergeable`);
+            if (!ids.includes('baseline-no-eval') || !ids.includes('baseline-disabled-tls')) throw new Error(`${name}: expected rules missing`);
+            if (Object.hasOwn(value, 'trace')) throw new Error(`${name}: trace leaked`);
+            if (value.diagnostics && Object.hasOwn(value.diagnostics, 'stderr')) throw new Error(`${name}: provider stderr leaked`);
+            console.log(name, JSON.stringify({pathway:value.pathwayResolution, findings:ids, mergeable:value.artifact.mergeable, blastRadius:value.artifact.blastRadius}));
+          }
+          NODE
+
+          echo "human exit=$human_code"
+          cat "$RUNNER_TEMP/human.err"
+          cat "$RUNNER_TEMP/human.out"
+
+  input-and-checks-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    env:
+      ANTHROPIC_API_KEY: ""
+      OPENAI_API_KEY: ""
+      GITGECKO_LOCAL_BASE_URL: ""
+    steps:
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: "22.19.0"
+      - name: Tracked diff, untracked guidance, explicit file, and runtime checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          export HOME="$RUNNER_TEMP/home"
+          export npm_config_cache="$RUNNER_TEMP/npm-cache"
+          mkdir -p "$HOME" "$RUNNER_TEMP/repo"
+          cd "$RUNNER_TEMP/repo"
+          git init -q
+          git config user.name "GitGecko E2E"
+          git config user.email "e2e@gitgecko.invalid"
+          printf 'export const safe = true;\n' > tracked.ts
+          git add tracked.ts
+          git commit -qm baseline
+          printf 'export const unsafe = eval("1+1");\n' > tracked.ts
+
+          set +e
+          npx --yes gitgecko review --pathway deterministic --json > "$RUNNER_TEMP/tracked.json" 2> "$RUNNER_TEMP/tracked.err"
+          tracked_code=$?
+          set -e
+          test "$tracked_code" -eq 1
+          test ! -s "$RUNNER_TEMP/tracked.err"
+
+          git reset --hard -q HEAD
+          printf 'export const apiKey = "UNTRACKED_0123456789ABCDEF";\n' > new.ts
+          set +e
+          npx --yes gitgecko review --pathway deterministic --json > "$RUNNER_TEMP/untracked.json" 2> "$RUNNER_TEMP/untracked.err"
+          untracked_code=$?
+          npx --yes gitgecko review --pathway deterministic --file new.ts --json > "$RUNNER_TEMP/explicit.json" 2> "$RUNNER_TEMP/explicit.err"
+          explicit_code=$?
+          set -e
+          test "$untracked_code" -eq 1
+          test "$explicit_code" -eq 0
+          test ! -s "$RUNNER_TEMP/untracked.err"
+          test ! -s "$RUNNER_TEMP/explicit.err"
+
+          set +e
+          npx --yes gitgecko review --pathway deterministic --file new.ts --run-checks --json > "$RUNNER_TEMP/checks-missing.json" 2> "$RUNNER_TEMP/checks-missing.err"
+          missing_code=$?
+          set -e
+          test "$missing_code" -eq 1
+
+          mkdir -p "$HOME/gitgecko"
+          cat > "$HOME/gitgecko/config.json" <<'JSON'
+          {
+            "version": 1,
+            "reviewChecks": [
+              {"id":"required-pass","label":"Required pass","command":"node","args":["-e","process.exit(0)"],"timeoutMs":10000},
+              {"id":"optional-fail","label":"Optional fail","command":"node","args":["-e","process.exit(7)"],"timeoutMs":10000,"required":false}
+            ]
+          }
+          JSON
+
+          set +e
+          npx --yes gitgecko review --pathway deterministic --file new.ts --run-checks --json > "$RUNNER_TEMP/checks.json" 2> "$RUNNER_TEMP/checks.err"
+          checks_code=$?
+          set -e
+          test "$checks_code" -eq 0
+          test ! -s "$RUNNER_TEMP/checks.err"
+
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const tracked = JSON.parse(fs.readFileSync(`${process.env.RUNNER_TEMP}/tracked.json`, 'utf8'));
+          const untracked = JSON.parse(fs.readFileSync(`${process.env.RUNNER_TEMP}/untracked.json`, 'utf8'));
+          const explicit = JSON.parse(fs.readFileSync(`${process.env.RUNNER_TEMP}/explicit.json`, 'utf8'));
+          const missing = JSON.parse(fs.readFileSync(`${process.env.RUNNER_TEMP}/checks-missing.json`, 'utf8'));
+          const checked = JSON.parse(fs.readFileSync(`${process.env.RUNNER_TEMP}/checks.json`, 'utf8'));
+          if (!tracked.artifact.files.some(f => f.path === 'tracked.ts')) throw new Error('tracked diff path missing');
+          if (!/Pass --file for new files/.test(untracked.output)) throw new Error('untracked guidance missing');
+          if (!explicit.artifact.findings.some(f => f.ruleId === 'baseline-hardcoded-secret')) throw new Error('explicit file finding missing');
+          if (!/requires at least one reviewChecks entry/.test(missing.output)) throw new Error('missing-check configuration guidance absent');
+          if (checked.artifact.runtimeChecks?.checks?.length !== 2 || checked.artifact.runtimeChecks.allRequiredPassed !== true) throw new Error('runtime-check receipt invalid');
+          console.log('tracked files', tracked.artifact.files.map(f => f.path));
+          console.log('untracked guidance', untracked.output);
+          console.log('explicit warning mergeable', explicit.artifact.mergeable);
+          console.log('runtime checks', JSON.stringify(checked.artifact.runtimeChecks));
+          NODE
+
+  auth-and-adjacent-commands:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    env:
+      ANTHROPIC_API_KEY: ""
+      OPENAI_API_KEY: ""
+      GITGECKO_LOCAL_BASE_URL: ""
+      GITGECKO_NO_BROWSER: "1"
+    steps:
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: "22.19.0"
+      - name: Device handoff, cloud boundary, ask, describe, improve, and validation errors
+        shell: bash
+        run: |
+          set -euo pipefail
+          export HOME="$RUNNER_TEMP/home"
+          export npm_config_cache="$RUNNER_TEMP/npm-cache"
+          mkdir -p "$HOME" "$RUNNER_TEMP/repo"
+          cd "$RUNNER_TEMP/repo"
+          git init -q
+          git config user.name "GitGecko E2E"
+          git config user.email "e2e@gitgecko.invalid"
+          printf 'export const safe = true;\n' > app.ts
+          git add app.ts
+          git commit -qm baseline
+          printf 'export const unsafe = eval("1+1");\n' > app.ts
+
+          npx --yes gitgecko whoami
+
+          set +e
+          npx --yes gitgecko review --pathway cloud --json > "$RUNNER_TEMP/cloud.json" 2> "$RUNNER_TEMP/cloud.err"
+          cloud_code=$?
+          timeout 10s npx --yes gitgecko auth > "$RUNNER_TEMP/auth.out" 2>&1
+          auth_code=$?
+          npx --yes gitgecko ask "Does this introduce code execution?" --pathway deterministic --json > "$RUNNER_TEMP/ask.json" 2> "$RUNNER_TEMP/ask.err"
+          ask_code=$?
+          npx --yes gitgecko describe --pathway deterministic --json > "$RUNNER_TEMP/describe.json" 2> "$RUNNER_TEMP/describe.err"
+          describe_code=$?
+          npx --yes gitgecko improve --pathway deterministic --json > "$RUNNER_TEMP/improve.json" 2> "$RUNNER_TEMP/improve.err"
+          improve_code=$?
+          npx --yes gitgecko review --mission nonsense --pathway deterministic --json > "$RUNNER_TEMP/mission.json" 2> "$RUNNER_TEMP/mission.err"
+          mission_code=$?
+          set -e
+
+          test "$cloud_code" -eq 1
+          test "$mission_code" -eq 1
+          test ! -s "$RUNNER_TEMP/cloud.err"
+          test ! -s "$RUNNER_TEMP/ask.err"
+          test ! -s "$RUNNER_TEMP/describe.err"
+          test ! -s "$RUNNER_TEMP/improve.err"
+          test ! -s "$RUNNER_TEMP/mission.err"
+
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const cloud = JSON.parse(fs.readFileSync(`${process.env.RUNNER_TEMP}/cloud.json`, 'utf8'));
+          const mission = JSON.parse(fs.readFileSync(`${process.env.RUNNER_TEMP}/mission.json`, 'utf8'));
+          if (cloud.failure !== 'auth' || !/requires an authenticated device/.test(cloud.output)) throw new Error('cloud auth boundary invalid');
+          if (!/correctness, security, reliability, performance, or testability/.test(mission.output)) throw new Error('mission guidance invalid');
+          for (const name of ['ask','describe','improve']) {
+            const value = JSON.parse(fs.readFileSync(`${process.env.RUNNER_TEMP}/${name}.json`, 'utf8'));
+            console.log(name, JSON.stringify({exit:name === 'ask' ? process.env.ASK_CODE : undefined, success:value.success, output:value.output.slice(0,160)}));
+          }
+          console.log('cloud boundary', cloud.output);
+          console.log('mission guidance', mission.output);
+          NODE
+
+          echo "auth exit=$auth_code"
+          sed -E 's/(code=)[^&[:space:]]+/\1<redacted>/g; s#(/[A-Z0-9]{6,})#/<redacted>#g' "$RUNNER_TEMP/auth.out" \
+            | grep -E 'Open this URL|Browser opened|Waiting for authorization|Could not reach|Login is optional|expired|denied|Timed out' || true
+          echo "adjacent exit codes: ask=$ask_code describe=$describe_code improve=$improve_code"
