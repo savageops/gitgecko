@@ -1,0 +1,51 @@
+name: GitGecko Node engine resolution probe
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  resolve:
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["22.18.0", "22.19.0"]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Resolve plain, latest, and explicit release from isolated caches
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "node=$(node --version) npm=$(npm --version)"
+          npm view gitgecko version dist-tags engines --json
+
+          index=0
+          for spec in gitgecko gitgecko@latest gitgecko@0.1.7; do
+            index=$((index + 1))
+            export npm_config_cache="$RUNNER_TEMP/npm-cache-$index"
+            echo "===== advisory npx $spec version ====="
+            set +e
+            npm_config_engine_strict=false npx --yes "$spec" version > "$RUNNER_TEMP/advisory-$index.out" 2> "$RUNNER_TEMP/advisory-$index.err"
+            advisory_code=$?
+            set -e
+            echo "exit=$advisory_code"
+            cat "$RUNNER_TEMP/advisory-$index.out"
+            cat "$RUNNER_TEMP/advisory-$index.err"
+          done
+
+          export npm_config_cache="$RUNNER_TEMP/npm-cache-strict"
+          echo "===== strict npx gitgecko@latest version ====="
+          set +e
+          npm_config_engine_strict=true npx --yes gitgecko@latest version > "$RUNNER_TEMP/strict.out" 2> "$RUNNER_TEMP/strict.err"
+          strict_code=$?
+          set -e
+          echo "exit=$strict_code"
+          cat "$RUNNER_TEMP/strict.out"
+          cat "$RUNNER_TEMP/strict.err"
