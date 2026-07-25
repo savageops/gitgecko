@@ -8,7 +8,7 @@ permissions:
   contents: read
 
 jobs:
-  codex-app-server-contract:
+  codex-exec-contract:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -23,14 +23,14 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
           node-version: "22.19.0"
-      - name: Exercise Codex discovery and App Server RPC contract
+      - name: Exercise Codex discovery and exec JSONL contract
         shell: bash
-        run: node .gitgecko-bench/native-probe.mjs | tee "$RUNNER_TEMP/native-followup.json"
-      - name: Upload Codex follow-up evidence
+        run: node .gitgecko-bench/native-exec-probe.mjs | tee "$RUNNER_TEMP/native-exec-followup.json"
+      - name: Upload Codex exec follow-up evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: native-followup
-          path: ${{ runner.temp }}/native-followup.json
+          name: native-exec-followup
+          path: ${{ runner.temp }}/native-exec-followup.json
           if-no-files-found: warn
           retention-days: 1
