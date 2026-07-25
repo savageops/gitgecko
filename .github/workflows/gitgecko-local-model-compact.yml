@@ -1,0 +1,37 @@
+name: GitGecko compact local-model evidence
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: "22.19.0"
+      - name: Probe configured OpenAI-compatible route
+        shell: bash
+        run: |
+          set -u
+          export HOME="$RUNNER_TEMP/home" npm_config_cache="$RUNNER_TEMP/cache"
+          mkdir -p "$HOME" "$RUNNER_TEMP/repo"
+          cat > "$RUNNER_TEMP/server.mjs" <<'JS'
+          import http from'node:http';import fs from'node:fs';
+          http.createServer(async(q,r)=>{let b='';for await(const c of q)b+=c;fs.appendFileSync(process.env.LOG,JSON.stringify({m:q.method,u:q.url,a:q.headers.authorization,b:b?JSON.parse(b):null})+'\n');if(q.method==='GET'){r.writeHead(200,{'content-type':'application/json'});return r.end(JSON.stringify({data:[{id:'mock',owned_by:'local',protocols:['openai-chat-completions'],capabilities:{streaming:true}}]}));}let x={id:'x',object:'chat.completion.chunk',created:1,model:'mock',choices:[{index:0,delta:{role:'assistant',content:'MODEL_ROUTE_OK'},finish_reason:null}]},y={id:'x',object:'chat.completion.chunk',created:1,model:'mock',choices:[{index:0,delta:{},finish_reason:'stop'}],usage:{prompt_tokens:1,completion_tokens:1,total_tokens:2}};r.writeHead(200,{'content-type':'text/event-stream'});r.end(`data: ${JSON.stringify(x)}\n\ndata: ${JSON.stringify(y)}\n\ndata: [DONE]\n\n`)}).listen(18766,'127.0.0.1');
+          JS
+          LOG="$RUNNER_TEMP/requests" node "$RUNNER_TEMP/server.mjs" & server=$!; sleep 1
+          cd "$RUNNER_TEMP/repo"; git init -q; git config user.name e2e; git config user.email e2e@invalid
+          printf 'export const safe=true;\n' > app.ts; git add app.ts; git commit -qm base; printf 'export const x=eval("1");\n' > app.ts
+          npx --yes gitgecko models configure --base-url http://127.0.0.1:18766/v1 --model mock --protocol openai-chat-completions
+          npx --yes gitgecko models show
+          set +e
+          npx --yes gitgecko review --pathway pi --json > "$RUNNER_TEMP/result" 2> "$RUNNER_TEMP/error"; code=$?
+          set -e
+          echo "review_exit=$code"; echo 'stderr:'; cat "$RUNNER_TEMP/error"; echo 'result:'; cat "$RUNNER_TEMP/result"; echo; echo 'requests:'; cat "$RUNNER_TEMP/requests"
+          kill "$server" 2>/dev/null || true
