@@ -1,0 +1,169 @@
+name: GitGecko focused black-box evidence
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  website-route-map:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Report route status, redirect target, and onboarding text
+        shell: bash
+        run: |
+          set -euo pipefail
+          for route in / /docs /features /pricing /login /cloud /how-it-works /docs/api /blog /changelog /roadmap; do
+            curl --silent --show-error --location --output /dev/null \
+              --write-out "%{http_code} $route -> %{url_effective}\n" \
+              "https://gitgecko.com$route"
+          done
+          home=$(curl --silent --show-error https://gitgecko.com/)
+          docs=$(curl --silent --show-error https://gitgecko.com/docs)
+          printf 'home global-install=%s npx=%s node-requirement=%s\n' \
+            "$(grep -Fq 'npm i -g gitgecko' <<<"$home" && echo yes || echo no)" \
+            "$(grep -Fq 'npx gitgecko' <<<"$home" && echo yes || echo no)" \
+            "$(grep -Fq 'Node.js' <<<"$home" && echo yes || echo no)"
+          printf 'docs global-install=%s npx=%s node-requirement=%s\n' \
+            "$(grep -Fq 'npm i -g gitgecko' <<<"$docs" && echo yes || echo no)" \
+            "$(grep -Fq 'npx gitgecko' <<<"$docs" && echo yes || echo no)" \
+            "$(grep -Fq 'Node.js' <<<"$docs" && echo yes || echo no)"
+          for route in / /docs /login; do
+            echo "headers $route"
+            curl --silent --show-error --head "https://gitgecko.com$route" \
+              | tr -d '\r' \
+              | grep -Ei '^(HTTP/|content-security-policy:|strict-transport-security:|x-content-type-options:|referrer-policy:|permissions-policy:|x-frame-options:)' || true
+          done
+
+  first-run-stderr:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: "22.19.0"
+      - name: Measure cold command and capture stderr exactly
+        shell: bash
+        run: |
+          set -euo pipefail
+          export HOME="$RUNNER_TEMP/home"
+          export npm_config_cache="$RUNNER_TEMP/npm-cache"
+          mkdir -p "$HOME" "$RUNNER_TEMP/repo"
+          cd "$RUNNER_TEMP/repo"
+          git init -q
+          git config user.name "GitGecko E2E"
+          git config user.email "e2e@gitgecko.invalid"
+          printf 'export const safe = true;\n' > app.ts
+          git add app.ts
+          git commit -qm baseline
+          printf 'export const unsafe = eval("1+1");\n' > app.ts
+          started=$(date +%s%3N)
+          set +e
+          npx --yes gitgecko review --pathway deterministic --json > "$RUNNER_TEMP/cold.json" 2> "$RUNNER_TEMP/cold.err"
+          code=$?
+          set -e
+          elapsed=$(( $(date +%s%3N) - started ))
+          echo "exit=$code elapsed_ms=$elapsed stderr_bytes=$(wc -c < "$RUNNER_TEMP/cold.err")"
+          echo "stderr-begin"
+          cat "$RUNNER_TEMP/cold.err"
+          echo "stderr-end"
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const value = JSON.parse(fs.readFileSync(`${process.env.RUNNER_TEMP}/cold.json`, 'utf8'));
+          console.log(JSON.stringify({version:value.version, success:value.success, schema:value.artifact?.schemaVersion, mergeable:value.artifact?.mergeable, findings:value.artifact?.findings?.map(f=>f.ruleId)}));
+          NODE
+
+  runtime-check-receipt:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      ANTHROPIC_API_KEY: ""
+      OPENAI_API_KEY: ""
+      GITGECKO_LOCAL_BASE_URL: ""
+    steps:
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: "22.19.0"
+      - name: Warm install, run required/optional checks, and print receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          export HOME="$RUNNER_TEMP/home"
+          export npm_config_cache="$RUNNER_TEMP/npm-cache"
+          mkdir -p "$HOME/gitgecko" "$RUNNER_TEMP/repo"
+          cd "$RUNNER_TEMP/repo"
+          git init -q
+          git config user.name "GitGecko E2E"
+          git config user.email "e2e@gitgecko.invalid"
+          printf 'export const apiKey = "WARNING_ONLY_0123456789ABCDEF";\n' > warning.ts
+          npx --yes gitgecko version >/dev/null
+          cat > "$HOME/gitgecko/config.json" <<'JSON'
+          {
+            "version": 1,
+            "reviewChecks": [
+              {"id":"required-pass","label":"Required pass","command":"node","args":["-e","process.exit(0)"],"timeoutMs":10000},
+              {"id":"optional-fail","label":"Optional fail","command":"node","args":["-e","process.exit(7)"],"timeoutMs":10000,"required":false}
+            ]
+          }
+          JSON
+          set +e
+          npx --yes gitgecko review --pathway deterministic --file warning.ts --run-checks --json > "$RUNNER_TEMP/checks.json" 2> "$RUNNER_TEMP/checks.err"
+          code=$?
+          set -e
+          echo "exit=$code stderr_bytes=$(wc -c < "$RUNNER_TEMP/checks.err")"
+          cat "$RUNNER_TEMP/checks.err"
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const value = JSON.parse(fs.readFileSync(`${process.env.RUNNER_TEMP}/checks.json`, 'utf8'));
+          console.log(JSON.stringify({
+            success:value.success,
+            mergeable:value.artifact?.mergeable,
+            findings:value.artifact?.findings?.map(f=>({id:f.ruleId,severity:f.severity})),
+            runtimeChecks:value.artifact?.runtimeChecks
+          }, null, 2));
+          if (value.artifact?.runtimeChecks?.checks?.length !== 2) process.exit(2);
+          if (value.artifact.runtimeChecks.allRequiredPassed !== true) process.exit(3);
+          if (value.artifact.mergeable !== true || code !== 0) process.exit(4);
+          NODE
+
+  untracked-and-warning-policy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: "22.19.0"
+      - name: Verify untracked guidance and warning-only exit policy after warmup
+        shell: bash
+        run: |
+          set -euo pipefail
+          export HOME="$RUNNER_TEMP/home"
+          export npm_config_cache="$RUNNER_TEMP/npm-cache"
+          mkdir -p "$HOME" "$RUNNER_TEMP/repo"
+          cd "$RUNNER_TEMP/repo"
+          git init -q
+          git config user.name "GitGecko E2E"
+          git config user.email "e2e@gitgecko.invalid"
+          printf '# baseline\n' > README.md
+          git add README.md
+          git commit -qm baseline
+          printf 'export const apiKey = "UNTRACKED_0123456789ABCDEF";\n' > new.ts
+          npx --yes gitgecko version >/dev/null
+          set +e
+          npx --yes gitgecko review --pathway deterministic --json > "$RUNNER_TEMP/missing.json" 2> "$RUNNER_TEMP/missing.err"
+          missing_code=$?
+          npx --yes gitgecko review --pathway deterministic --file new.ts --json > "$RUNNER_TEMP/explicit.json" 2> "$RUNNER_TEMP/explicit.err"
+          explicit_code=$?
+          set -e
+          echo "missing_exit=$missing_code missing_stderr_bytes=$(wc -c < "$RUNNER_TEMP/missing.err")"
+          echo "explicit_exit=$explicit_code explicit_stderr_bytes=$(wc -c < "$RUNNER_TEMP/explicit.err")"
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const missing = JSON.parse(fs.readFileSync(`${process.env.RUNNER_TEMP}/missing.json`, 'utf8'));
+          const explicit = JSON.parse(fs.readFileSync(`${process.env.RUNNER_TEMP}/explicit.json`, 'utf8'));
+          console.log('missing', JSON.stringify({success:missing.success,failure:missing.failure,output:missing.output}));
+          console.log('explicit', JSON.stringify({success:explicit.success,mergeable:explicit.artifact?.mergeable,findings:explicit.artifact?.findings?.map(f=>({id:f.ruleId,severity:f.severity}))}));
+          NODE
