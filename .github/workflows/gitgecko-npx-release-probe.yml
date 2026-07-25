@@ -1,0 +1,170 @@
+name: GitGecko npx release-channel probe
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  registry-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: "22.19.0"
+      - name: Resolve npm tags and executable versions
+        shell: bash
+        run: |
+          set -uo pipefail
+          echo "===== npm metadata ====="
+          npm view gitgecko name version dist-tags versions engines --json
+          for spec in gitgecko gitgecko@latest gitgecko@0.1.6; do
+            echo "===== npx $spec version ====="
+            set +e
+            npx --yes "$spec" version > "/tmp/${spec//@/_}.out" 2> "/tmp/${spec//@/_}.err"
+            code=$?
+            set -e
+            echo "exit=$code"
+            cat "/tmp/${spec//@/_}.out"
+            cat "/tmp/${spec//@/_}.err"
+          done
+
+  default-channel-behavior:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: "22.19.0"
+      - name: Probe plain npx behavior without failing the evidence job
+        shell: bash
+        run: |
+          set -uo pipefail
+          mkdir -p "$RUNNER_TEMP/gitgecko-probe"
+          cat > "$RUNNER_TEMP/gitgecko-probe/fixture.ts" <<'TS'
+          export function run(expression: string): unknown {
+            return eval(expression);
+          }
+          export const apiKey = "GG_E2E_0123456789ABCDEF";
+          export const tls = { rejectUnauthorized: false };
+          TS
+
+          for command in \
+            "version" \
+            "doctor" \
+            "review --pathway deterministic --file $RUNNER_TEMP/gitgecko-probe/fixture.ts" \
+            "review --pathway deterministic --file $RUNNER_TEMP/gitgecko-probe/fixture.ts --json"; do
+            echo "===== npx gitgecko $command ====="
+            set +e
+            eval "npx --yes gitgecko $command" > "$RUNNER_TEMP/default.out" 2> "$RUNNER_TEMP/default.err"
+            code=$?
+            set -e
+            echo "exit=$code"
+            echo "--- stdout ---"; cat "$RUNNER_TEMP/default.out"
+            echo "--- stderr ---"; cat "$RUNNER_TEMP/default.err"
+          done
+
+  current-release-full-process:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      ANTHROPIC_API_KEY: ""
+      OPENAI_API_KEY: ""
+      GITGECKO_LOCAL_BASE_URL: ""
+      GITGECKO_NO_BROWSER: "1"
+    steps:
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: "22.19.0"
+      - name: Exercise explicit 0.1.6 review path and machine contracts
+        shell: bash
+        run: |
+          set -uo pipefail
+          export HOME="$RUNNER_TEMP/home"
+          export npm_config_cache="$RUNNER_TEMP/npm-cache"
+          mkdir -p "$HOME" "$RUNNER_TEMP/repo"
+          cd "$RUNNER_TEMP/repo"
+          git init -q
+          git config user.name "GitGecko E2E"
+          git config user.email "e2e@gitgecko.invalid"
+          cat > fixture.ts <<'TS'
+          export function executeUserExpression(expression: string): unknown {
+            return eval(expression);
+          }
+          export const apiKey = "GG_E2E_0123456789ABCDEF";
+          export const insecureTls = { rejectUnauthorized: false };
+          export function renderUnsafe(target: HTMLElement, value: string): void {
+            target.innerHTML = value;
+          }
+          export function loadUser(db: { query(sql: string): unknown }, id: string): unknown {
+            return db.query(`SELECT * FROM users WHERE id = ${id}`);
+          }
+          export function debugRequest(payload: unknown): void {
+            debugger;
+            console.log(payload);
+          }
+          TS
+          git add fixture.ts
+          git commit -qm baseline
+          printf '\nexport const secondApiKey = "SECOND_0123456789ABCDEF";\n' >> fixture.ts
+
+          echo "===== explicit release identity ====="
+          npx --yes gitgecko@0.1.6 version
+          echo "===== doctor ====="
+          npx --yes gitgecko@0.1.6 doctor
+          echo "===== whoami ====="
+          npx --yes gitgecko@0.1.6 whoami
+          echo "===== implicit working-tree review (JSON) ====="
+          set +e
+          npx --yes gitgecko@0.1.6 review --pathway deterministic --json > "$RUNNER_TEMP/review.json" 2> "$RUNNER_TEMP/review.err"
+          review_code=$?
+          set -e
+          echo "exit=$review_code"; cat "$RUNNER_TEMP/review.err"; cat "$RUNNER_TEMP/review.json"
+
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const value = JSON.parse(fs.readFileSync(`${process.env.RUNNER_TEMP}/review.json`, 'utf8'));
+          console.log('contract:', JSON.stringify({
+            success: value.success,
+            command: value.command,
+            pathway: value.pathwayResolution,
+            schemaVersion: value.artifact?.schemaVersion,
+            mergeable: value.artifact?.mergeable,
+            findings: value.artifact?.findings?.map(f => f.ruleId),
+            tracePresent: Object.hasOwn(value, 'trace'),
+            diagnosticsStderrPresent: Boolean(value.diagnostics && Object.hasOwn(value.diagnostics, 'stderr')),
+          }));
+          if (value.success !== true || value.artifact?.schemaVersion !== 'review.v2') process.exit(2);
+          if (value.artifact.mergeable !== false || !value.artifact.findings.length) process.exit(3);
+          if (Object.hasOwn(value, 'trace') || (value.diagnostics && Object.hasOwn(value.diagnostics, 'stderr'))) process.exit(4);
+          NODE
+
+          echo "===== explicit file review (human) ====="
+          set +e
+          npx --yes gitgecko@0.1.6 review --pathway deterministic --file fixture.ts > "$RUNNER_TEMP/human.out" 2> "$RUNNER_TEMP/human.err"
+          human_code=$?
+          set -e
+          echo "exit=$human_code"; cat "$RUNNER_TEMP/human.err"; cat "$RUNNER_TEMP/human.out"
+
+          echo "===== unauthenticated cloud boundary ====="
+          set +e
+          npx --yes gitgecko@0.1.6 review --pathway cloud --file fixture.ts --json > "$RUNNER_TEMP/cloud.json" 2> "$RUNNER_TEMP/cloud.err"
+          cloud_code=$?
+          set -e
+          echo "exit=$cloud_code"; cat "$RUNNER_TEMP/cloud.err"; cat "$RUNNER_TEMP/cloud.json"
+
+          echo "===== untracked guidance ====="
+          git reset --hard -q HEAD
+          printf 'export const apiKey = "UNTRACKED_0123456789ABCDEF";\n' > new.ts
+          set +e
+          npx --yes gitgecko@0.1.6 review --pathway deterministic --json > "$RUNNER_TEMP/untracked.json" 2> "$RUNNER_TEMP/untracked.err"
+          untracked_code=$?
+          set -e
+          echo "exit=$untracked_code"; cat "$RUNNER_TEMP/untracked.err"; cat "$RUNNER_TEMP/untracked.json"
