@@ -118,7 +118,7 @@ for (const name of ['pi', 'auto', 'ask']) {
     schema: value.artifact?.schemaVersion, mergeable: value.artifact?.mergeable,
     findings: value.artifact?.findings?.map((finding) => finding.ruleId),
   }));
-  if (!value.success || value.pathwayResolution?.family !== 'local' || !value.output.includes('[mock-model]')) {
+  if (!value.success || value.pathwayResolution?.family !== 'pi' || !value.output.includes('[mock-model]')) {
     throw new Error(`${name}: configured local model route failed`);
   }
   if (name !== 'ask') {
