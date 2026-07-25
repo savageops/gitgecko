@@ -1,0 +1,486 @@
+name: GitGecko npx black-box E2E
+
+on:
+  push:
+    branches:
+      - test/e2e-npx-gitgecko-20260725
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gitgecko-npx-e2e-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  website-smoke:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Crawl public onboarding routes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from html.parser import HTMLParser
+          from urllib.parse import urljoin, urlparse
+          from urllib.request import Request, urlopen
+          from urllib.error import HTTPError, URLError
+          import re
+
+          base = "https://gitgecko.com"
+          seeds = [
+              "/", "/docs", "/features", "/pricing", "/login", "/cloud",
+              "/how-it-works", "/docs/api", "/blog", "/changelog", "/roadmap",
+          ]
+
+          class Links(HTMLParser):
+              def __init__(self):
+                  super().__init__()
+                  self.hrefs = []
+              def handle_starttag(self, tag, attrs):
+                  if tag == "a":
+                      href = dict(attrs).get("href")
+                      if href:
+                          self.hrefs.append(href)
+
+          discovered = set(seeds)
+          pages = {}
+          for path in list(seeds):
+              url = urljoin(base, path)
+              try:
+                  req = Request(url, headers={"User-Agent": "GitGecko-E2E/1.0"})
+                  with urlopen(req, timeout=20) as response:
+                      body = response.read().decode("utf-8", "replace")
+                      status = response.status
+                      final = response.geturl()
+                  title = re.search(r"<title[^>]*>(.*?)</title>", body, re.I | re.S)
+                  title_text = re.sub(r"\s+", " ", title.group(1)).strip() if title else "(no title)"
+                  pages[path] = (status, final, title_text, body)
+                  print(f"{status} {path:18} -> {final} | {title_text}")
+                  parser = Links(); parser.feed(body)
+                  for href in parser.hrefs:
+                      parsed = urlparse(urljoin(base, href))
+                      if parsed.netloc == "gitgecko.com" and not parsed.path.startswith("/_next/"):
+                          discovered.add(parsed.path or "/")
+              except HTTPError as exc:
+                  print(f"HTTP {exc.code} {path:18} -> {exc.geturl()}")
+                  pages[path] = (exc.code, exc.geturl(), "(HTTP error)", "")
+              except URLError as exc:
+                  print(f"NETWORK ERROR {path}: {exc}")
+                  pages[path] = (0, url, "(network error)", "")
+
+          print("\nDiscovered internal routes:")
+          for path in sorted(discovered):
+              print(path)
+
+          required = ["/", "/docs", "/changelog", "/roadmap"]
+          failed = [path for path in required if pages.get(path, (0,))[0] != 200]
+          if failed:
+              raise SystemExit(f"Required public routes failed: {failed}")
+
+          home = pages["/"][3]
+          print("\nHomepage command contract:")
+          print("contains global-install command:", "npm i -g gitgecko" in home)
+          print("contains npx command:", "npx gitgecko" in home)
+          PY
+
+      - name: Inspect response and security headers
+        shell: bash
+        run: |
+          set -euo pipefail
+          for route in / /docs /login; do
+            echo "===== $route ====="
+            curl --silent --show-error --location --head "https://gitgecko.com$route" \
+              | tr -d '\r' \
+              | grep -Ei '^(HTTP/|location:|content-type:|content-security-policy:|strict-transport-security:|x-content-type-options:|referrer-policy:|permissions-policy:|x-frame-options:)' || true
+          done
+
+  cli-core:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      ANTHROPIC_API_KEY: ""
+      OPENAI_API_KEY: ""
+      GITGECKO_LOCAL_BASE_URL: ""
+      GITGECKO_NO_BROWSER: "1"
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: "22.19.0"
+
+      - name: Package metadata and cold npx startup
+        shell: bash
+        run: |
+          set -euo pipefail
+          export HOME="$RUNNER_TEMP/gitgecko-home"
+          export npm_config_cache="$RUNNER_TEMP/npm-cache"
+          mkdir -p "$HOME"
+
+          echo "Node: $(node --version)"
+          echo "npm:  $(npm --version)"
+          npm view gitgecko version engines dist.unpackedSize dist.tarball time.modified --json
+
+          started=$(date +%s)
+          npx --yes gitgecko@latest version | tee "$RUNNER_TEMP/version.txt"
+          elapsed=$(( $(date +%s) - started ))
+          cache_size=$(du -sh "$npm_config_cache" | awk '{print $1}')
+          {
+            echo "### Cold npx startup"
+            echo "- elapsed: ${elapsed}s"
+            echo "- npm cache after first run: ${cache_size}"
+            echo "- version: $(cat "$RUNNER_TEMP/version.txt")"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: First-run information and unauthenticated boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          export HOME="$RUNNER_TEMP/gitgecko-home"
+          export npm_config_cache="$RUNNER_TEMP/npm-cache"
+
+          npx --yes gitgecko@latest > "$RUNNER_TEMP/no-command.txt"
+          npx --yes gitgecko@latest help > "$RUNNER_TEMP/help.txt"
+          npx --yes gitgecko@latest doctor > "$RUNNER_TEMP/doctor.txt"
+          npx --yes gitgecko@latest whoami > "$RUNNER_TEMP/whoami.txt"
+          npx --yes gitgecko@latest models show > "$RUNNER_TEMP/models-show.txt"
+
+          grep -q "USAGE:" "$RUNNER_TEMP/no-command.txt"
+          grep -q "USAGE:" "$RUNNER_TEMP/help.txt"
+          grep -qi "path" "$RUNNER_TEMP/doctor.txt"
+          grep -q "Not logged in" "$RUNNER_TEMP/whoami.txt"
+
+          echo "===== doctor ====="
+          cat "$RUNNER_TEMP/doctor.txt"
+          echo "===== whoami ====="
+          cat "$RUNNER_TEMP/whoami.txt"
+          echo "===== models show ====="
+          cat "$RUNNER_TEMP/models-show.txt"
+
+          set +e
+          npx --yes gitgecko@latest history --json > "$RUNNER_TEMP/history.json" 2> "$RUNNER_TEMP/history.err"
+          history_code=$?
+          npx --yes gitgecko@latest review --pathway cloud --file .gitgecko-e2e/fixture.ts --json > "$RUNNER_TEMP/cloud.json" 2> "$RUNNER_TEMP/cloud.err"
+          cloud_code=$?
+          set -e
+
+          test "$history_code" -eq 1
+          test "$cloud_code" -eq 1
+          node - <<'NODE'
+          const fs = require('node:fs');
+          for (const name of ['history', 'cloud']) {
+            const value = JSON.parse(fs.readFileSync(`${process.env.RUNNER_TEMP}/${name}.json`, 'utf8'));
+            if (value.success !== false) throw new Error(`${name}: expected success=false`);
+            console.log(`${name}: ${value.failure} | ${value.output}`);
+          }
+          NODE
+
+      - name: Device authorization handoff (headless, bounded)
+        shell: bash
+        run: |
+          set -euo pipefail
+          export HOME="$RUNNER_TEMP/gitgecko-home"
+          export npm_config_cache="$RUNNER_TEMP/npm-cache"
+          set +e
+          timeout 12s npx --yes gitgecko@latest auth > "$RUNNER_TEMP/auth.txt" 2>&1
+          auth_code=$?
+          set -e
+          echo "auth exit code: $auth_code"
+          sed -E 's/(code=)[^&[:space:]]+/\1<redacted>/g; s#(/[A-Z0-9]{6,})#/<redacted>#g' "$RUNNER_TEMP/auth.txt" \
+            | grep -E 'Open this URL|Browser opened|Waiting for authorization|Could not reach|Login is optional|Cloud auth' || true
+          if [ "$auth_code" -ne 124 ] && ! grep -Eq 'Could not reach|expired|denied|Timed out' "$RUNNER_TEMP/auth.txt"; then
+            echo "Unexpected auth behavior" >&2
+            exit 1
+          fi
+
+      - name: Deterministic review — human, JSON, agent, and auto modes
+        shell: bash
+        run: |
+          set -euo pipefail
+          export HOME="$RUNNER_TEMP/gitgecko-home"
+          export npm_config_cache="$RUNNER_TEMP/npm-cache"
+
+          set +e
+          npx --yes gitgecko@latest review --pathway deterministic --mission security --file .gitgecko-e2e/fixture.ts \
+            > "$RUNNER_TEMP/review-human.txt" 2> "$RUNNER_TEMP/review-human.err"
+          human_code=$?
+          npx --yes gitgecko@latest review --pathway deterministic --mission security --file .gitgecko-e2e/fixture.ts --json \
+            > "$RUNNER_TEMP/review.json" 2> "$RUNNER_TEMP/review-json.err"
+          json_code=$?
+          npx --yes gitgecko@latest review --pathway deterministic --file .gitgecko-e2e/fixture.ts --agent \
+            > "$RUNNER_TEMP/review-agent.txt" 2> "$RUNNER_TEMP/review-agent.err"
+          agent_code=$?
+          npx --yes gitgecko@latest review --file .gitgecko-e2e/fixture.ts --json \
+            > "$RUNNER_TEMP/review-auto.json" 2> "$RUNNER_TEMP/review-auto.err"
+          auto_code=$?
+          set -e
+
+          test "$human_code" -eq 1
+          test "$json_code" -eq 1
+          test "$agent_code" -eq 1
+          test "$auto_code" -eq 1
+          test ! -s "$RUNNER_TEMP/review-json.err"
+          test ! -s "$RUNNER_TEMP/review-agent.err"
+          test ! -s "$RUNNER_TEMP/review-auto.err"
+
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const result = JSON.parse(fs.readFileSync(path.join(process.env.RUNNER_TEMP, 'review.json'), 'utf8'));
+          if (result.success !== true) throw new Error('review execution should succeed');
+          if (result.artifact?.schemaVersion !== 'review.v2') throw new Error('missing review.v2 artifact');
+          if (result.artifact.mergeable !== false) throw new Error('unsafe fixture must be non-mergeable');
+          if ('trace' in result) throw new Error('public JSON leaked trace');
+          if (result.diagnostics && 'stderr' in result.diagnostics) throw new Error('public JSON leaked provider stderr');
+          const ids = new Set(result.artifact.findings.map((finding) => finding.ruleId));
+          const expected = [
+            'baseline-no-eval',
+            'baseline-hardcoded-secret',
+            'baseline-disabled-tls',
+            'baseline-dangerous-innerhtml',
+            'baseline-sql-string-concat',
+            'baseline-debugger-statement',
+            'baseline-console-in-prod-path',
+          ];
+          const missing = expected.filter((id) => !ids.has(id));
+          if (missing.length) throw new Error(`missing rules: ${missing.join(', ')}`);
+          console.log(JSON.stringify({
+            pathway: result.pathwayResolution,
+            findings: result.artifact.findings.map(({severity, ruleId, file, line}) => ({severity, ruleId, file, line})),
+            mergeable: result.artifact.mergeable,
+            blastRadius: result.artifact.blastRadius,
+          }, null, 2));
+
+          const auto = JSON.parse(fs.readFileSync(path.join(process.env.RUNNER_TEMP, 'review-auto.json'), 'utf8'));
+          console.log('auto pathway:', auto.pathwayResolution);
+          NODE
+
+          echo "===== human review ====="
+          cat "$RUNNER_TEMP/review-human.txt"
+          echo "===== human stderr ====="
+          cat "$RUNNER_TEMP/review-human.err"
+
+      - name: Implicit working-tree diff and untracked-file guidance
+        shell: bash
+        run: |
+          set -euo pipefail
+          export HOME="$RUNNER_TEMP/gitgecko-home"
+          export npm_config_cache="$RUNNER_TEMP/npm-cache"
+
+          repo="$RUNNER_TEMP/worktree-repo"
+          mkdir -p "$repo"
+          git -C "$repo" init -q
+          git -C "$repo" config user.name "GitGecko E2E"
+          git -C "$repo" config user.email "e2e@gitgecko.invalid"
+          printf 'export const safe = true;\n' > "$repo/app.ts"
+          git -C "$repo" add app.ts
+          git -C "$repo" commit -qm "baseline"
+          cp .gitgecko-e2e/fixture.ts "$repo/app.ts"
+
+          set +e
+          npx --yes gitgecko@latest review --pathway deterministic --cwd "$repo" --json > "$RUNNER_TEMP/worktree.json" 2> "$RUNNER_TEMP/worktree.err"
+          worktree_code=$?
+          set -e
+          test "$worktree_code" -eq 1
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const value = JSON.parse(fs.readFileSync(`${process.env.RUNNER_TEMP}/worktree.json`, 'utf8'));
+          if (!value.artifact?.files?.some((file) => file.path === 'app.ts')) throw new Error('implicit diff did not include app.ts');
+          console.log('implicit files:', value.artifact.files.map((file) => file.path));
+          NODE
+
+          clean="$RUNNER_TEMP/untracked-repo"
+          mkdir -p "$clean"
+          git -C "$clean" init -q
+          git -C "$clean" config user.name "GitGecko E2E"
+          git -C "$clean" config user.email "e2e@gitgecko.invalid"
+          printf '# baseline\n' > "$clean/README.md"
+          git -C "$clean" add README.md
+          git -C "$clean" commit -qm "baseline"
+          cp .gitgecko-e2e/fixture.ts "$clean/new-file.ts"
+
+          set +e
+          npx --yes gitgecko@latest review --pathway deterministic --cwd "$clean" --json > "$RUNNER_TEMP/untracked.json" 2> "$RUNNER_TEMP/untracked.err"
+          untracked_code=$?
+          npx --yes gitgecko@latest review --pathway deterministic --cwd "$clean" --file new-file.ts --json > "$RUNNER_TEMP/untracked-explicit.json" 2> "$RUNNER_TEMP/untracked-explicit.err"
+          explicit_code=$?
+          set -e
+
+          test "$untracked_code" -eq 1
+          test "$explicit_code" -eq 1
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const missing = JSON.parse(fs.readFileSync(`${process.env.RUNNER_TEMP}/untracked.json`, 'utf8'));
+          if (!/Pass --file for new files/.test(missing.output)) throw new Error(`untracked guidance was not actionable: ${missing.output}`);
+          const explicit = JSON.parse(fs.readFileSync(`${process.env.RUNNER_TEMP}/untracked-explicit.json`, 'utf8'));
+          if (!explicit.artifact?.findings?.length) throw new Error('explicit untracked file review produced no findings');
+          console.log('untracked guidance:', missing.output);
+          NODE
+
+      - name: Runtime-check contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          export HOME="$RUNNER_TEMP/gitgecko-home"
+          export npm_config_cache="$RUNNER_TEMP/npm-cache"
+
+          set +e
+          npx --yes gitgecko@latest review --pathway deterministic --file .gitgecko-e2e/fixture.ts --run-checks --json \
+            > "$RUNNER_TEMP/checks-missing.json" 2> "$RUNNER_TEMP/checks-missing.err"
+          missing_code=$?
+          set -e
+          test "$missing_code" -eq 1
+
+          mkdir -p "$HOME/gitgecko"
+          cat > "$HOME/gitgecko/config.json" <<'JSON'
+          {
+            "version": 1,
+            "reviewChecks": [
+              {"id":"node-pass","label":"Node pass","command":"node","args":["-e","process.exit(0)"],"timeoutMs":10000},
+              {"id":"optional-fail","label":"Optional fail","command":"node","args":["-e","process.exit(7)"],"timeoutMs":10000,"required":false}
+            ]
+          }
+          JSON
+
+          set +e
+          npx --yes gitgecko@latest review --pathway deterministic --file .gitgecko-e2e/fixture.ts --run-checks --json \
+            > "$RUNNER_TEMP/checks.json" 2> "$RUNNER_TEMP/checks.err"
+          checks_code=$?
+          set -e
+          test "$checks_code" -eq 1
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const missing = JSON.parse(fs.readFileSync(`${process.env.RUNNER_TEMP}/checks-missing.json`, 'utf8'));
+          if (!/requires at least one reviewChecks entry/.test(missing.output)) throw new Error(missing.output);
+          const checked = JSON.parse(fs.readFileSync(`${process.env.RUNNER_TEMP}/checks.json`, 'utf8'));
+          const report = checked.artifact?.runtimeChecks;
+          if (!report || report.checks.length !== 2 || report.allRequiredPassed !== true) throw new Error('runtime check receipt mismatch');
+          console.log(JSON.stringify(report, null, 2));
+          NODE
+
+  engine-contract:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: "22.18.0"
+      - name: Test documented Node 22 boundary against package engines
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Node: $(node --version)"
+          set +e
+          npm_config_engine_strict=true npx --yes gitgecko@latest version > "$RUNNER_TEMP/strict.out" 2> "$RUNNER_TEMP/strict.err"
+          strict_code=$?
+          npm_config_engine_strict=false npx --yes gitgecko@latest version > "$RUNNER_TEMP/advisory.out" 2> "$RUNNER_TEMP/advisory.err"
+          advisory_code=$?
+          set -e
+          echo "engine-strict exit: $strict_code"
+          cat "$RUNNER_TEMP/strict.err"
+          echo "advisory exit: $advisory_code"
+          cat "$RUNNER_TEMP/advisory.err"
+          cat "$RUNNER_TEMP/advisory.out"
+          test "$strict_code" -ne 0
+
+  cross-platform:
+    if: github.event_name != 'pull_request'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    env:
+      ANTHROPIC_API_KEY: ""
+      OPENAI_API_KEY: ""
+      GITGECKO_LOCAL_BASE_URL: ""
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: "22.19.0"
+      - name: npx install, doctor, and deterministic review
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes gitgecko@latest version
+          npx --yes gitgecko@latest doctor
+          set +e
+          npx --yes gitgecko@latest review --pathway deterministic --file .gitgecko-e2e/fixture.ts --json > "$RUNNER_TEMP/review.json" 2> "$RUNNER_TEMP/review.err"
+          code=$?
+          set -e
+          test "$code" -eq 1
+          test ! -s "$RUNNER_TEMP/review.err"
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const value = JSON.parse(fs.readFileSync(path.join(process.env.RUNNER_TEMP, 'review.json'), 'utf8'));
+          if (value.artifact?.schemaVersion !== 'review.v2') throw new Error('missing review.v2');
+          if (!value.artifact.findings.some((finding) => finding.ruleId === 'baseline-no-eval')) throw new Error('baseline rule missing');
+          console.log(`${process.platform}: ${value.artifact.findings.length} findings`);
+          NODE
+
+  documented-pr-action:
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+      pull-requests: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Run the exact action pin documented in README
+        id: documented
+        continue-on-error: true
+        uses: savageops/gitgecko@472543206e5d82bcb2386d78c1bd29d1a04a9b25
+        with:
+          pathway: deterministic
+          max_timeout: "300"
+      - name: Record documented action outcome
+        if: always()
+        shell: bash
+        run: echo "documented pin outcome=${{ steps.documented.outcome }}" >> "$GITHUB_STEP_SUMMARY"
+
+  current-public-pr-action:
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+      pull-requests: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Run action from the current public commit
+        id: current
+        continue-on-error: true
+        uses: savageops/gitgecko@a83122e4904e1bba15a582005928aaa64df60416
+        with:
+          pathway: deterministic
+          max_timeout: "300"
+      - name: Record current action outcome
+        if: always()
+        shell: bash
+        run: echo "current public pin outcome=${{ steps.current.outcome }}" >> "$GITHUB_STEP_SUMMARY"
